@@ -1,5 +1,5 @@
 (defpackage #:deftask-cli
-  (:use #:cl #:alexandria)
+  (:use #:cl #:alexandria #:deftask-utils)
   (:export #:main))
 
 (in-package #:deftask-cli)
@@ -69,6 +69,17 @@
        (get-opts ,opts ,argv)
      ,@body))
 
+(defun getf-all (plist indicator)
+  (loop
+     :for head := (member indicator plist) :then (member indicator (cddr head))
+     :while head
+     :collect (second head)))
+
+(defun get-opt-value (name &optional sequence)
+  (if sequence
+      (getf-all *options* name)
+      (getf *options* name)))
+
 ;;; main
 
 (define-opts *main-opts* ()
@@ -100,7 +111,9 @@
         (t :invalid)))
 
 (defun show-help-p (argv)
-  (getf (get-opts *main-opts* argv) :help))
+  (find-if (lambda (arg)
+             (or (string= arg "-h") (string= arg "--help")))
+           argv))
 
 (defun show-help (subcommand argv)
   (declare (ignore argv))
@@ -165,6 +178,12 @@
      ,@body))
 
 (define-opts *new-task-opts* (*main-opts*)
+  (:name :description
+         :description "task description"
+         :short #\d
+         :long "description"
+         :arg-parser #'identity
+         :meta-var "DESCRIPTION")
   (:name :label
          :description "a label"
          :short #\l
@@ -181,6 +200,22 @@
 (defun subcommand-new (argv)
   (with-options-and-free-args (*new-task-opts* argv)
     (with-token-and-project-id
-      (let ((task (deftask:deftask (second argv))))
-        (term:print "#~ ~" :args (list (deftask::assocrv :task-id task) (deftask::assocrv :title task)))))))
+      (let* ((label-names (get-opt-value :label t))
+             (label-ids (remove nil
+                                (mapcar (lambda (name)
+                                          (assocrv :label-id
+                                                   (first (assocrv :labels (deftask:get-labels :name name)))))
+                                        label-names)))
+             (assignee-names (get-opt-value :assignee t))
+             (assignee-ids (remove nil
+                                   (mapcar (lambda (name)
+                                             (let ((response (deftask:get-project-members deftask:*project-id* name)))
+                                               (assocrv '(:user :user-id) (first (assocrv :members response)))))
+                                           assignee-names)))
+             (task (deftask:deftask (second *free-args*)
+                       :description (get-opt-value :description)
+                       :label-ids label-ids
+                       :assignee-ids assignee-ids)))
+        (term:print "#~ ~" :args (list (assocrv :task-id task)
+                                       (assocrv :title task)))))))
 

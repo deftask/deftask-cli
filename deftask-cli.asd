@@ -4,5 +4,6 @@
   :author "Chaitanya Gupta <mail@chaitanyagupta.com>"
   :serial t
   :depends-on ("alexandria" "drakma" "cl-json" "unix-opts" "quri" "cl-interpol" "cl-ppcre" "cl-ansi-term")
-  :components ((:file "deftask")
+  :components ((:file "utils")
+               (:file "deftask")
                (:file "deftask-cli")))
