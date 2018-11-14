@@ -100,7 +100,7 @@
          :arg-parser #'identity
          :meta-var "PROJECT"))
 
-(defvar *subcommands* (list :show-projects :project :new :ls :list :search :show :close :open :re-open :edit :comment :edit-comment :default))
+(defvar *subcommands* (list :projects :project :new :ls :list :search :show :close :open :re-open :edit :comment :edit-comment :default))
 
 (defun parse-subcommand (arg)
   (cond ((null arg) nil)
@@ -177,6 +177,13 @@
          (deftask:*project-id* (project-id)))
      ,@body))
 
+(defun subcommand-projects (argv)
+  (declare (ignore argv))
+  (let* ((deftask:*token* (token))
+         (projects (deftask:get-projects)))
+    (dolist (project projects)
+      (term:print "#~ ~" :args (list (assocrv :project-id project) (assocrv :name project))))))
+
 (define-opts *new-task-opts* (*main-opts*)
   (:name :description
          :description "task description"
@@ -204,13 +211,13 @@
              (label-ids (remove nil
                                 (mapcar (lambda (name)
                                           (assocrv :label-id
-                                                   (first (assocrv :labels (deftask:get-labels :name name)))))
+                                                   (first (deftask:get-labels :name name))))
                                         label-names)))
              (assignee-names (get-opt-value :assignee t))
              (assignee-ids (remove nil
                                    (mapcar (lambda (name)
-                                             (let ((response (deftask:get-project-members deftask:*project-id* name)))
-                                               (assocrv '(:user :user-id) (first (assocrv :members response)))))
+                                             (let ((members (deftask:get-project-members deftask:*project-id* name)))
+                                               (assocrv '(:user :user-id) (first members))))
                                            assignee-names)))
              (task (deftask:deftask (second *free-args*)
                        :description (get-opt-value :description)
@@ -218,4 +225,44 @@
                        :assignee-ids assignee-ids)))
         (term:print "#~ ~" :args (list (assocrv :task-id task)
                                        (assocrv :title task)))))))
+
+(define-opts *ls-opts* (*main-opts*)
+  (:name :query
+         :description "search query"
+         :short #\q
+         :long "query"
+         :arg-parser #'identity
+         :meta-var "QUERY")
+  (:name :order-by
+         :description "field to order results by"
+         :short #\o
+         :long "order-by"
+         :arg-parser #'identity
+         :meta-var "ORDER_BY"))
+
+(defun subcommand-ls (argv)
+  (with-options-and-free-args (*ls-opts* argv)
+    (with-token-and-project-id
+      (let* ((tasks (deftask:list-tasks :query (get-opt-value :query)
+                                        :order-by (get-opt-value :order-by)
+                                        :page (get-opt-value :page)))
+             (labels (when (some (assocrv-fn :label-ids) tasks)
+                       (deftask:get-labels)))
+             (members (when (some (assocrv-fn :assignee-ids) tasks)
+                        (deftask:get-project-members deftask:*project-id*))))
+        (dolist (task tasks)
+          (term:print "#~ ~" :args (list (assocrv :task-id task)
+                                         (assocrv :title task)))
+          (when-let (label-ids (assocrv :label-ids task))
+            (let* ((task-labels (mapcar (lambda (label-id)
+                                          (find label-id labels :key (assocrv-fn :label-id)))
+                                        label-ids))
+                   (task-label-names (mapcar (assocrv-fn :name) task-labels)))
+              (term:print "  Labels: ~" :args (list (format nil "~{~A~^, ~}" task-label-names)))))
+          (when-let (assignee-ids (assocrv :assignee-ids task))
+            (let* ((assignees (mapcar (lambda (assignee-id)
+                                        (find assignee-id members :key (assocrv-fn '(:user :user-id))))
+                                      assignee-ids))
+                   (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
+              (term:print "  Assignees: ~" :args (list (format nil "~{~A~^, ~}" assignee-names))))))))))
 

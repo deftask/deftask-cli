@@ -51,8 +51,9 @@
   (api-request :get #?"/orgs/$(org-id)"))
 
 (defun get-org-members (org-id &optional name)
-  (api-request :get #?"/orgs/$(org-id)/members"
-               `(("name" . ,name))))
+  (assocrv :members
+           (api-request :get #?"/orgs/$(org-id)/members"
+                        `(("name" . ,name)))))
 
 (defun get-orgs ()
   (api-request :get #?"/orgs"))
@@ -63,8 +64,9 @@
   (api-request :get #?"/projects/$(project-id)"))
 
 (defun get-project-members (project-id &optional name)
-  (api-request :get #?"/projects/$(project-id)/members"
-               `(("name" . ,name))))
+  (assocrv :members
+           (api-request :get #?"/projects/$(project-id)/members"
+                        `(("name" . ,name)))))
 
 (defun get-projects ()
   (assocrv :projects (api-request :get "/projects")))
@@ -79,11 +81,11 @@
                  ,@(alist-for-sequence "label-id" label-ids)
                  ,@(alist-for-sequence "assignee-id" assignee-ids))))
 
-(defun list-tasks (&key query (page 1) order-by (project-id *project-id*))
+(defun list-tasks (&key query page order-by (project-id *project-id*))
   (assocrv :tasks
            (api-request :get #?"/projects/$(project-id)/tasks"
                         `(("query" . ,query)
-                          ("page" . ,(format nil "~A" page))
+                          ("page" . ,(when page (format nil "~A" page)))
                           ("order-by" . ,(when order-by
                                            (string-downcase order-by)))))))
 
@@ -104,5 +106,6 @@
                `(("body" . ,body))))
 
 (defun get-labels (&key name (project-id *project-id*))
-  (api-request :get #?"/projects/$(project-id)/labels"
-               `(("name" . ,name))))
+  (assocrv :labels
+           (api-request :get #?"/projects/$(project-id)/labels"
+                        `(("name" . ,name)))))
