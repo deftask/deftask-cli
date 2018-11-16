@@ -1,5 +1,5 @@
 (defpackage #:deftask-cli
-  (:use #:cl #:alexandria #:deftask-utils)
+  (:use #:cl #:alexandria #:deftask-utils #:cffi #:deftask-sys)
   (:export #:main))
 
 (in-package #:deftask-cli)
@@ -126,17 +126,6 @@
   (let* ((fn (intern (format nil "SUBCOMMAND-~A" (string-upcase subcommand))
                      #.*package*)))
     (funcall fn argv)))
-
-(defun main ()
-  (with-simple-restart (abort "Abort program")
-    (let* ((argv (opts:argv))
-           (subcommand (parse-subcommand (second argv))))
-      (if (show-help-p argv)
-          (show-help subcommand (rest argv))
-          (case subcommand
-            ((nil) (handle-no-subcommand (rest argv)))
-            (:invalid (show-help subcommand (rest argv)))
-            (t (handle-subcommand subcommand (rest argv))))))))
 
 (defvar *default-config-file* (merge-pathnames #p".deftaskrc" (home)))
 
@@ -281,4 +270,179 @@
                (termcolor:with-color (:style :dim)
                  (format t "  Assignees: ~{~A~^, ~}~%" assignee-names))))))))))
 
-(setf termcolor:*colorize* :force)
+;;; call less -FRX
+
+;; string handling
+
+(defun lisp-strings-to-foreign (strings pointer &key null-terminated-p)
+  (let ((length (length strings)))
+    (dotimes (i length pointer)
+      (setf (mem-aref pointer :string i) (elt strings i)))
+    (when null-terminated-p
+      (setf (mem-aref pointer :string length) (null-pointer)))))
+
+(defmacro with-lisp-strings-to-foreign ((pointer strings &key null-terminated-p) &body body)
+  (let ((strings-var (gensym "STRINGS-")))
+    `(let ((,strings-var ,strings))
+       (with-foreign-object (,pointer :string (1+ (length ,strings-var)))
+         (lisp-strings-to-foreign ,strings-var ,pointer :null-terminated-p ,null-terminated-p)
+         ,@body))))
+
+;; error handling
+
+(defcvar "errno" :int)
+
+(defcfun "strerror" :string
+  (errnum :int))
+
+(define-condition sys-error (error)
+  ((number :initarg :number :reader sys-error-number)
+   (foreign-name :initarg :foreign-name)))
+
+(defun sys-error-message (error)
+  (strerror (slot-value error 'number)))
+
+(defun sys-error-name (error)
+  (foreign-enum-keyword 'error-number (sys-error-number error)))
+
+(defmethod print-object ((x sys-error) stream)
+  (with-slots (number foreign-name)
+      x
+    (flet ((print-info ()
+             (format stream "~A(~A): ~A" foreign-name number (sys-error-message x))))
+      (if *print-escape*
+          (print-unreadable-object (x stream :type t)
+            (print-info))
+          (print-info)))))
+
+(defun sys-error-p (value type)
+  (ecase type
+    (:int (= value -1))
+    (:string (null value))))
+
+(defmacro with-error-signalling ((foreign-name &optional (type :int)) &body body)
+  (let ((retval (gensym "RETVAL-")))
+    `(let ((,retval (progn ,@body)))
+       (when (sys-error-p ,retval ,type)
+         (error 'sys-error :number *errno* :foreign-name ,foreign-name))
+       ,retval)))
+
+(defmacro defsysfun (name-and-options return-type &body arguments)
+  (setf name-and-options (if (atom name-and-options)
+                             (list name-and-options)
+                             name-and-options))
+  (let* ((keyword-position (or (position-if #'keywordp name-and-options)
+                               (length name-and-options)))
+         (name (subseq name-and-options 0 keyword-position))
+         (options (subseq name-and-options keyword-position))
+         (signal-errors (getf options :signal-errors)))
+    (remf options :signal-errors)
+    (multiple-value-bind (lisp-name foreign-name spec)
+        (cffi::parse-name-and-options (append name options))
+      (let ((underlying-name (intern (concatenate 'string "%" (string lisp-name))
+                                     #.*package*)))
+        `(progn
+           (defcfun (,underlying-name ,foreign-name ,@spec) ,return-type
+             ,@arguments)
+           (defun ,lisp-name ,(mapcar #'first arguments)
+             (flet ((run ()
+                      (apply (function ,underlying-name) (list ,@(mapcar #'first arguments)))))
+               ,(if signal-errors
+                    `(with-error-signalling (,foreign-name ,(if (eql signal-errors t) return-type signal-errors))
+                       (run))
+                    `(run)))))))))
+
+;; fork/exec
+
+#+sbcl
+(defun fork ()
+  (sb-posix:fork))
+
+(defcfun (%execvp "execvp") :int
+  (file :string)
+  (argv (:pointer :string)))
+
+(defun execvp (file args)
+  (with-error-signalling ("execvp")
+    (with-lisp-strings-to-foreign (argv (cons file args) :null-terminated-p t)
+      (%execvp file argv))))
+
+(defsysfun ("waitpid" :signal-errors :int) pid
+  (pid pid)
+  (stat-loc :pointer)
+  (options :int))
+
+;; fds
+
+(defconstant +stdin+ 0)
+(defconstant +stdout+ 1)
+(defconstant +stderr+ 2)
+
+(defcfun (%pipe "pipe") :int
+  (filedes (:pointer :int)))
+
+(defun pipe ()
+  (with-foreign-object (filedes :int 2)
+    (with-error-signalling ("pipe")
+      (%pipe filedes))
+    (cons (mem-aref filedes :int 0)
+          (mem-aref filedes :int 1))))
+
+(defsysfun "dup2" :int
+  (filedes :int)
+  (filedes2 :int))
+
+(defsysfun (posix-close "close" :signal-errors t) :int
+  (filedes :int))
+
+(defsysfun "isatty" :boolean
+  (filedes :int))
+
+;; less launcher
+
+(defun launch-pager (name args)
+  (destructuring-bind (read-fd . write-fd)
+      (pipe)
+    (let ((pid (fork)))
+      (if (plusp pid)
+          ;; parent
+          (progn
+            (dup2 write-fd +stdout+)
+            (dup2 write-fd +stderr+)
+            (posix-close read-fd)
+            (posix-close write-fd)
+            pid)
+          ;; child
+          (progn
+            (dup2 read-fd +stdin+)
+            (posix-close read-fd)
+            (posix-close write-fd)
+            (execvp name args))))))
+
+(defun interactive-terminal-p ()
+  (isatty +stdout+))
+
+(defmacro with-pager ((name args) &body body)
+  (let ((child-pid (gensym "CHILD-PID-")))
+    `(if (interactive-terminal-p)
+         (let ((,child-pid (launch-pager ,name ,args)))
+           (unwind-protect (progn ,@body)
+             (posix-close +stdout+)
+             (posix-close +stderr+)
+             (waitpid ,child-pid (null-pointer) 0)))
+         (progn ,@body))))
+
+;;; main
+
+(defun main ()
+  (with-simple-restart (abort "Abort program")
+    (let ((termcolor:*colorize* (interactive-terminal-p)))
+      (with-pager ("less" (list "-FRX"))
+        (let* ((argv (opts:argv))
+               (subcommand (parse-subcommand (second argv))))
+          (if (show-help-p argv)
+              (show-help subcommand (rest argv))
+              (case subcommand
+                ((nil) (handle-no-subcommand (rest argv)))
+                (:invalid (show-help subcommand (rest argv)))
+                (t (handle-subcommand subcommand (rest argv))))))))))
