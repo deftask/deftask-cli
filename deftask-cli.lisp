@@ -116,9 +116,8 @@
            argv))
 
 (defun show-help (subcommand argv)
-  (declare (ignore argv))
-  (term:print
-   (describe-opts *main-opts* :prefix "deftask-cli is THE program")))
+  (declare (ignore subcommand argv))
+  (describe-opts *main-opts* :prefix "deftask-cli is THE program"))
 
 (defun handle-no-subcommand (argv)
   argv)
@@ -182,7 +181,9 @@
   (let* ((deftask:*token* (token))
          (projects (deftask:get-projects)))
     (dolist (project projects)
-      (term:print "#~ ~" :args (list (assocrv :project-id project) (assocrv :name project))))))
+      (termcolor:with-color (:style :bright)
+        (format t "#~D" (assocrv :project-id project)))
+      (format t " ~A~%" (assocrv :name project)))))
 
 (define-opts *new-task-opts* (*main-opts*)
   (:name :description
@@ -223,8 +224,9 @@
                        :description (get-opt-value :description)
                        :label-ids label-ids
                        :assignee-ids assignee-ids)))
-        (term:print "#~ ~" :args (list (assocrv :task-id task)
-                                       (assocrv :title task)))))))
+        (termcolor:with-color (:style :bright)
+          (format t "#~D" (assocrv :task-id task)))
+        (format t " ~A~%" (assocrv :title task))))))
 
 (define-opts *ls-opts* (*main-opts*)
   (:name :query
@@ -238,7 +240,16 @@
          :short #\o
          :long "order-by"
          :arg-parser #'identity
-         :meta-var "ORDER_BY"))
+         :meta-var "ORDER_BY")
+  (:name :detail
+         :description "task detail"
+         :short #\d
+         :long "detail"
+         :arg-parser (lambda (str)
+                       (cond ((string= str "compact") :compact)
+                             ((string= str "detailed") :detailed)
+                             (t (error "DETAIL should be 'compact' or 'detailed'"))))
+         :meta-var "DETAIL"))
 
 (defun subcommand-ls (argv)
   (with-options-and-free-args (*ls-opts* argv)
@@ -251,18 +262,23 @@
              (members (when (some (assocrv-fn :assignee-ids) tasks)
                         (deftask:get-project-members deftask:*project-id*))))
         (dolist (task tasks)
-          (term:print "#~ ~" :args (list (assocrv :task-id task)
-                                         (assocrv :title task)))
-          (when-let (label-ids (assocrv :label-ids task))
-            (let* ((task-labels (mapcar (lambda (label-id)
-                                          (find label-id labels :key (assocrv-fn :label-id)))
-                                        label-ids))
-                   (task-label-names (mapcar (assocrv-fn :name) task-labels)))
-              (term:print "  Labels: ~" :args (list (format nil "~{~A~^, ~}" task-label-names)))))
-          (when-let (assignee-ids (assocrv :assignee-ids task))
-            (let* ((assignees (mapcar (lambda (assignee-id)
-                                        (find assignee-id members :key (assocrv-fn '(:user :user-id))))
-                                      assignee-ids))
-                   (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
-              (term:print "  Assignees: ~" :args (list (format nil "~{~A~^, ~}" assignee-names))))))))))
+          (termcolor:with-color (:style :bright)
+            (format t "#~D" (assocrv :task-id task)))
+          (format t " ~A~%" (assocrv :title task))
+          (when (eq (get-opt-value :detail) :detailed)
+           (when-let (label-ids (assocrv :label-ids task))
+             (let* ((task-labels (mapcar (lambda (label-id)
+                                           (find label-id labels :key (assocrv-fn :label-id)))
+                                         label-ids))
+                    (task-label-names (mapcar (assocrv-fn :name) task-labels)))
+               (termcolor:with-color (:style :dim)
+                 (format t "  Labels: ~{~A~^, ~}~%" task-label-names))))
+           (when-let (assignee-ids (assocrv :assignee-ids task))
+             (let* ((assignees (mapcar (lambda (assignee-id)
+                                         (find assignee-id members :key (assocrv-fn '(:user :user-id))))
+                                       assignee-ids))
+                    (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
+               (termcolor:with-color (:style :dim)
+                 (format t "  Assignees: ~{~A~^, ~}~%" assignee-names))))))))))
 
+(setf termcolor:*colorize* :force)
