@@ -98,14 +98,15 @@
          :arg-parser #'identity
          :meta-var "PROJECT"))
 
-(defvar *subcommands* (list :projects :project :new :ls :list :search :show :close :open :re-open :edit :comment :edit-comment :defaults :project-defaults))
-
 (defun parse-subcommand (arg)
   (cond ((null arg) nil)
         ((zerop (length arg)) :invalid)
         ((char= (char arg 0) #\-) nil)
         ((cl-ppcre:scan "\\s" arg) nil)
-        (#1=(find arg *subcommands* :test #'string-equal) #1#)
+        ((fboundp
+          (find-symbol (format nil "SUBCOMMAND-~A" (string-upcase arg))
+                       #.*package*))
+         (intern (string-upcase arg) :keyword))
         (t :invalid)))
 
 (defun show-help-p (argv)
