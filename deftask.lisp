@@ -4,7 +4,7 @@
            #:current-user #:get-user
            #:get-org #:get-org-members #:get-orgs
            #:*project-id* #:get-project #:get-project-members #:get-projects
-           #:deftask #:list-tasks #:get-task #:edit-task
+           #:deftask #:list-tasks #:get-task #:close-task #:open-task #:edit-task
            #:comment #:edit-comment
            #:get-labels))
 
@@ -90,6 +90,14 @@
 
 (defun get-task (task-id &key (project-id *project-id*))
   (api-request :get #?"/projects/$(project-id)/tasks/$(task-id)"))
+
+(defun close-task (task-id &key (project-id *project-id*))
+ (api-request :patch #?"/projects/$(project-id)/tasks/$(task-id)"
+              `(("state" . "closed"))))
+
+(defun open-task (task-id &key (project-id *project-id*))
+ (api-request :patch #?"/projects/$(project-id)/tasks/$(task-id)"
+              `(("state" . "open"))))
 
 (defun edit-task (task-id &key (project-id *project-id*) title description)
   (api-request :patch #?"/projects/$(project-id)/tasks/$(task-id)"

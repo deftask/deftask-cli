@@ -342,6 +342,19 @@
                 (termcolor:with-color (:style :dim)
                   (format t "  Assignees: ~{~A~^, ~}~%" assignee-names))))))))))
 
+(defun subcommand-close (argv)
+  (with-options-and-free-args (*main-opts* argv)
+    (with-token-and-project-id
+      (deftask:close-task (second *free-args*)))))
+
+(defun subcommand-open (argv)
+  (with-options-and-free-args (*main-opts* argv)
+    (with-token-and-project-id
+      (deftask:open-task (second *free-args*)))))
+
+(defun subcommand-reopen (argv)
+  (subcommand-open argv))
+
 ;; less launcher
 
 (defun launch-pager (name args)
