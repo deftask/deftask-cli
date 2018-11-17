@@ -355,6 +355,39 @@
 (defun subcommand-reopen (argv)
   (subcommand-open argv))
 
+(define-opts *edit-task-opts* (*main-opts*)
+  (:name :title
+         :description "task title"
+         :short #\t
+         :long "title"
+         :arg-parser #'identity
+         :meta-var "TITLE")
+  (:name :description
+         :description "task description"
+         :short #\d
+         :long "description"
+         :arg-parser #'identity
+         :meta-var "DESCRIPTION")
+  (:name :label
+         :description "a label"
+         :short #\l
+         :long "label"
+         :arg-parser #'identity
+         :meta-var "LABEL")
+  (:name :assignee
+         :description "an assignee"
+         :short #\a
+         :long "assignee"
+         :arg-parser #'identity
+         :meta-var "ASSIGNEE"))
+
+(defun subcommand-edit (argv)
+  (with-options-and-free-args (*edit-task-opts* argv)
+    (with-token-and-project-id
+      (deftask:edit-task (second *free-args*)
+                         :title (get-opt-value :title)
+                         :description (get-opt-value :description)))))
+
 ;; less launcher
 
 (defun launch-pager (name args)
