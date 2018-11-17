@@ -317,7 +317,7 @@
         (dolist (task tasks)
           (termcolor:with-color (:style :bright)
             (format t "#~D" (assocrv :task-id task)))
-          (format t " ~A~%" (assocrv :title task))
+          (format t "~:[ ✅~;~] ~A~%" (string= (assocrv :state task) "open") (assocrv :title task))
           (when (or (null detail) (string= detail "detailed"))
             (let* ((time-string (if (starts-with-subseq "updated-at" order-by)
                                     (assocrv :updated-at task)
