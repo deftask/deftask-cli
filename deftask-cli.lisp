@@ -100,7 +100,7 @@
          :arg-parser #'identity
          :meta-var "PROJECT"))
 
-(defvar *subcommands* (list :projects :project :new :ls :list :search :show :close :open :re-open :edit :comment :edit-comment :default))
+(defvar *subcommands* (list :projects :project :new :ls :list :search :show :close :open :re-open :edit :comment :edit-comment :defaults :project-defaults))
 
 (defun parse-subcommand (arg)
   (cond ((null arg) nil)
@@ -133,37 +133,80 @@
   (when (probe-file *default-config-file*)
     (safe-read-from-string (alexandria:read-file-into-string *default-config-file*))))
 
-(defvar *config* (read-config))
+(defvar *config* nil)
+
+(defun get-config-value (name)
+  (getf *config* name))
+
+(defun (setf get-config-value) (value name)
+  (setf (getf *config* name) value))
 
 (defun write-config (&optional (config *config*))
   (with-open-file (out *default-config-file* :direction :output :if-exists :supersede)
     (with-standard-io-syntax
       (write config :stream out))))
 
-(defun subcommand-default (argv)
-  (let* ((name (second argv))
-         (value (third argv)))
-    (check-type name string)
-    (check-type value string)
-    (let ((keyword (intern (string-upcase name) :keyword)))
-      (setf (getf *config* keyword) value)
-      (write-config))))
+(defun config-name-to-keyword (name)
+  (intern (string-upcase name) :keyword))
+
+(defun print-config (&optional (config *config*))
+  (loop
+     :for (key value) :on config :by #'cddr
+     :do (format t "~&~A = ~A~%" (string-downcase key) value)))
 
 (defun token ()
   (or (getf *options* :token)
       (getenv "DEFTASK_TOKEN")
-      (getf *config* :token)))
+      (get-config-value :token)))
 
 (defun project-id ()
   (when-let (str (or (getf *options* :project)
                      (getenv "DEFTASK_PROJECT")
-                     (getf *config* :project)))
+                     (get-config-value :project)))
     (parse-integer str)))
 
 (defmacro with-token-and-project-id (&body body)
   `(let ((deftask:*token* (token))
          (deftask:*project-id* (project-id)))
      ,@body))
+
+(defun subcommand-defaults (argv)
+  (let* ((name (second argv))
+         (value (third argv)))
+    (if name
+        (let ((keyword (config-name-to-keyword name)))
+          (setf (get-config-value keyword) value)
+          (write-config))
+        (print-config))))
+
+(defun subcommand-project-defaults (argv)
+  (with-options-and-free-args (*main-opts* argv)
+    (let* ((name (second *free-args* ))
+           (value (third *free-args*))
+           (project-id (project-id)))
+      (unless project-id
+        (error "No project-id given"))
+      (if name
+          (let ((keyword (config-name-to-keyword
+                          (format nil "projects.~A.~A" project-id name))))
+            (setf (get-config-value keyword) value)
+            (write-config))
+          (let ((config (loop
+                           :with prefix := (format nil "PROJECTS.~A." project-id)
+                           :for (key value) :on *config* :by #'cddr
+                           :if (starts-with-subseq prefix (symbol-name key))
+                           :append (list key value))))
+            (print-config config))))))
+
+(defun project-key (keyword project-id)
+  (let ((full-name (format nil "PROJECTS.~A.~A" project-id keyword)))
+    (intern full-name :keyword)))
+
+(defun get-project-config-value (keyword &optional (project-id (project-id)))
+  (get-config-value (project-key keyword project-id)))
+
+(defun (setf get-project-config-value) (value keyword &optional (project-id (project-id)))
+  (setf (get-config-value (project-key keyword project-id)) value))
 
 (defun subcommand-projects (argv)
   (declare (ignore argv))
@@ -310,7 +353,8 @@
 
 (defun main ()
   (with-simple-restart (abort "Abort program")
-    (let ((termcolor:*colorize* (interactive-terminal-p)))
+    (let ((*config* (read-config))
+          (termcolor:*colorize* (interactive-terminal-p)))
       (with-pager ("less" (list "-FRX"))
         (let* ((argv (opts:argv))
                (subcommand (parse-subcommand (second argv))))
