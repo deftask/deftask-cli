@@ -89,13 +89,11 @@
          :long "help")
   (:name :token
          :description "provide the access token"
-         :short #\t
          :long "token"
          :arg-parser #'identity
          :meta-var "TOKEN")
   (:name :project
          :description "provide the project"
-         :short #\p
          :long "project"
          :arg-parser #'identity
          :meta-var "PROJECT"))
@@ -273,48 +271,75 @@
          :long "order-by"
          :arg-parser #'identity
          :meta-var "ORDER_BY")
+  (:name :page
+         :description "page to display"
+         :short #\p
+         :long "page"
+         :arg-parser #'parse-integer
+         :meta-var "PAGE")
   (:name :detail
          :description "task detail"
          :short #\d
          :long "detail"
-         :arg-parser (lambda (str)
-                       (cond ((string= str "compact") :compact)
-                             ((string= str "detailed") :detailed)
-                             (t (error "DETAIL should be 'compact' or 'detailed'"))))
+         :arg-parser #'identity
          :meta-var "DETAIL"))
 
 (defun subcommand-ls (argv)
   (with-options-and-free-args (*ls-opts* argv)
     (with-token-and-project-id
-      (let* ((tasks (deftask:list-tasks :query (get-opt-value :query)
-                                        :order-by (or (get-opt-value :order-by)
-                                                      (get-project-config-value :order-by))
-                                        :page (get-opt-value :page)))
+      (let* ((order-by (or (get-opt-value :order-by)
+                           (get-project-config-value :order-by)
+                           "updated-at-desc"))
+             (page (or (get-opt-value :page) 1))
+             (response (deftask:list-tasks :query (get-opt-value :query)
+                                           :order-by order-by
+                                           :page page))
+             (tasks (assocrv :tasks response))
              (labels (when (some (assocrv-fn :label-ids) tasks)
                        (deftask:get-labels)))
              (members (when (some (assocrv-fn :assignee-ids) tasks)
                         (deftask:get-project-members deftask:*project-id*)))
              (detail (or (get-opt-value :detail)
-                         (get-project-config-value :detail))))
+                         (get-project-config-value :detail)))
+             (page-info (assocrv :page-info response))
+             (count (length tasks))
+             (total-count (assocrv :count page-info))
+             (current-page (assocrv :page page-info))
+             (page-count (assocrv :page-count page-info)))
+        (if (> page-count 1)
+            (format t "Page ~A of ~A, showing ~A of ~A matching tasks~%"
+                    current-page page-count
+                    count total-count)
+            (format t "~A tasks~%" count))
+        (format t "Ordered by ~A~%" order-by)
+        (format t "---~%")
         (dolist (task tasks)
           (termcolor:with-color (:style :bright)
             (format t "#~D" (assocrv :task-id task)))
           (format t " ~A~%" (assocrv :title task))
           (when (or (null detail) (string= detail "detailed"))
-           (when-let (label-ids (assocrv :label-ids task))
-             (let* ((task-labels (mapcar (lambda (label-id)
-                                           (find label-id labels :key (assocrv-fn :label-id)))
-                                         label-ids))
-                    (task-label-names (mapcar (assocrv-fn :name) task-labels)))
-               (termcolor:with-color (:style :dim)
-                 (format t "  Labels: ~{~A~^, ~}~%" task-label-names))))
-           (when-let (assignee-ids (assocrv :assignee-ids task))
-             (let* ((assignees (mapcar (lambda (assignee-id)
-                                         (find assignee-id members :key (assocrv-fn '(:user :user-id))))
-                                       assignee-ids))
-                    (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
-               (termcolor:with-color (:style :dim)
-                 (format t "  Assignees: ~{~A~^, ~}~%" assignee-names))))))))))
+            (let* ((time-string (if (starts-with-subseq "updated-at" order-by)
+                                    (assocrv :updated-at task)
+                                    (assocrv :created-at task)))
+                   (time (local-time:parse-timestring time-string)))
+              (termcolor:with-color (:style :dim)
+                (format t "  ~A: ~A~%"
+                        (if (starts-with-subseq "updated-at" order-by) "Updated" "Created")
+                        (relative-time time :sentencep nil))))
+            (when-let (label-ids (assocrv :label-ids task))
+              (let* ((task-labels (mapcar (lambda (label-id)
+                                            (find label-id labels :key (assocrv-fn :label-id)))
+                                          label-ids))
+                     (task-label-names (mapcar (assocrv-fn :name) task-labels)))
+                (termcolor:with-color (:style :dim)
+                  (format t "  Labels: ~{~A~^, ~}~%" task-label-names))))
+            (when-let (assignee-ids (assocrv :assignee-ids task))
+              (let* ((assignees (mapcar (lambda (assignee-id)
+                                          (find assignee-id members :key (assocrv-fn '(:user :user-id))))
+                                        assignee-ids))
+                     (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
+                (termcolor:with-color (:style :dim)
+                  (format t "  Assignees: ~{~A~^, ~}~%" assignee-names))))))))))
 
 ;; less launcher
 

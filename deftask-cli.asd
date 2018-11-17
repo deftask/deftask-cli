@@ -3,7 +3,17 @@
   :version "0.0.1"
   :author "Chaitanya Gupta <mail@chaitanyagupta.com>"
   :defsystem-depends-on ("cffi-grovel")
-  :depends-on ("cffi" "alexandria" "drakma" "cl-json" "unix-opts" "quri" "cl-interpol" "cl-ppcre" "termcolor")
+  :depends-on ("cffi"
+               "alexandria"
+               "drakma"
+               "cl-json"
+               "unix-opts"
+               "quri"
+               "cl-interpol"
+               "cl-ppcre"
+               "termcolor"
+               "local-time"
+               "cl-l10n")
   :serial t
   :components ((:module "sys"
                         :components ((:file "package")

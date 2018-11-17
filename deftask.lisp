@@ -82,12 +82,11 @@
                  ,@(alist-for-sequence "assignee-id" assignee-ids))))
 
 (defun list-tasks (&key query page order-by (project-id *project-id*))
-  (assocrv :tasks
-           (api-request :get #?"/projects/$(project-id)/tasks"
-                        `(("query" . ,query)
-                          ("page" . ,(when page (format nil "~A" page)))
-                          ("order-by" . ,(when order-by
-                                           (string-downcase order-by)))))))
+  (api-request :get #?"/projects/$(project-id)/tasks"
+               `(("query" . ,query)
+                 ("page" . ,(when page (format nil "~A" page)))
+                 ("order-by" . ,(when order-by
+                                  (string-downcase order-by))))))
 
 (defun get-task (task-id &key (project-id *project-id*))
   (api-request :get #?"/projects/$(project-id)/tasks/$(task-id)"))
