@@ -140,6 +140,9 @@
 (defun (setf get-config-value) (value name)
   (setf (getf *config* name) value))
 
+(defun remove-config-value (name)
+  (remf *config* name))
+
 (defun write-config (&optional (config *config*))
   (with-open-file (out *default-config-file* :direction :output :if-exists :supersede)
     (with-standard-io-syntax
@@ -169,33 +172,48 @@
          (deftask:*project-id* (project-id)))
      ,@body))
 
+(define-opts *defaults-opts* (*main-opts*)
+  (:name :remove
+         :description "Remove the option"
+         :short #\r
+         :long "remove"))
+
 (defun subcommand-defaults (argv)
-  (let* ((name (second argv))
-         (value (third argv)))
-    (if name
-        (let ((keyword (config-name-to-keyword name)))
-          (setf (get-config-value keyword) value)
-          (write-config))
-        (print-config))))
+  (with-options-and-free-args (*defaults-opts* argv)
+    (let* ((name (second *free-args*))
+           (value (third *free-args*)))
+      (cond
+        ((and (get-opt-value :remove) name)
+         (remove-config-value (config-name-to-keyword name))
+         (write-config))
+        (name
+         (let ((keyword (config-name-to-keyword name)))
+           (setf (get-config-value keyword) value)
+           (write-config)))
+        (t (print-config))))))
 
 (defun subcommand-project-defaults (argv)
-  (with-options-and-free-args (*main-opts* argv)
-    (let* ((name (second *free-args* ))
+  (with-options-and-free-args (*defaults-opts* argv)
+    (let* ((name (second *free-args*))
            (value (third *free-args*))
-           (project-id (project-id)))
+           (project-id (project-id))
+           (keyword (when name
+                      (config-name-to-keyword (format nil "projects.~A.~A" project-id name)))))
       (unless project-id
         (error "No project-id given"))
-      (if name
-          (let ((keyword (config-name-to-keyword
-                          (format nil "projects.~A.~A" project-id name))))
-            (setf (get-config-value keyword) value)
-            (write-config))
-          (let ((config (loop
-                           :with prefix := (format nil "PROJECTS.~A." project-id)
-                           :for (key value) :on *config* :by #'cddr
-                           :if (starts-with-subseq prefix (symbol-name key))
-                           :append (list key value))))
-            (print-config config))))))
+      (cond
+        ((and (get-opt-value :remove) name)
+         (remove-config-value keyword)
+         (write-config))
+        (name
+         (setf (get-config-value keyword) value)
+         (write-config))
+        (t (let ((config (loop
+                            :with prefix := (format nil "PROJECTS.~A." project-id)
+                            :for (key value) :on *config* :by #'cddr
+                            :if (starts-with-subseq prefix (symbol-name key))
+                            :append (list key value))))
+             (print-config config)))))))
 
 (defun project-key (keyword project-id)
   (let ((full-name (format nil "PROJECTS.~A.~A" project-id keyword)))
