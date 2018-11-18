@@ -388,6 +388,16 @@
                          :title (get-opt-value :title)
                          :description (get-opt-value :description)))))
 
+(defun subcommand-comment (argv)
+  (with-token-and-project-id
+    (let ((comment (deftask:comment (second argv) (third argv))))
+      (format t "Created comment #~A~%" (assocrv :comment-id comment)))))
+
+(defun subcommand-edit-comment (argv)
+  (with-token-and-project-id
+    (deftask:edit-comment (second argv) (third argv) (fourth argv))
+    (format t "Edited comment #~A~%" (third argv))))
+
 ;; less launcher
 
 (defun launch-pager (name args)
