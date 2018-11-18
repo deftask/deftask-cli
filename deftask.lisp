@@ -4,8 +4,8 @@
            #:current-user #:get-user
            #:get-org #:get-org-members #:get-orgs
            #:*project-id* #:get-project #:get-project-members #:get-projects
-           #:deftask #:list-tasks #:get-task #:close-task #:open-task #:edit-task
-           #:comment #:edit-comment
+           #:deftask #:get-tasks #:get-task #:close-task #:open-task #:edit-task
+           #:get-comments #:comment #:edit-comment
            #:get-labels))
 
 (in-package #:deftask)
@@ -56,7 +56,7 @@
                         `(("name" . ,name)))))
 
 (defun get-orgs ()
-  (api-request :get #?"/orgs"))
+  (assocrv :orgs (api-request :get #?"/orgs")))
 
 (defvar *project-id*)
 
@@ -81,12 +81,15 @@
                  ,@(alist-for-sequence "label-id" label-ids)
                  ,@(alist-for-sequence "assignee-id" assignee-ids))))
 
-(defun list-tasks (&key query page order-by (project-id *project-id*))
-  (api-request :get #?"/projects/$(project-id)/tasks"
-               `(("query" . ,query)
-                 ("page" . ,(when page (format nil "~A" page)))
-                 ("order-by" . ,(when order-by
-                                  (string-downcase order-by))))))
+(defun get-tasks (&key query page order-by page-info (project-id *project-id*))
+  (let ((response (api-request :get #?"/projects/$(project-id)/tasks"
+                               `(("query" . ,query)
+                                 ("page" . ,(when page (format nil "~A" page)))
+                                 ("order-by" . ,(when order-by
+                                                  (string-downcase order-by)))))))
+    (if page-info
+        response
+        (assocrv :tasks response))))
 
 (defun get-task (task-id &key (project-id *project-id*))
   (api-request :get #?"/projects/$(project-id)/tasks/$(task-id)"))
@@ -103,6 +106,10 @@
   (api-request :patch #?"/projects/$(project-id)/tasks/$(task-id)"
                `(("title" . ,title)
                  ("description" . ,description))))
+
+(defun get-comments (task-id &key (project-id *project-id*))
+  (assocrv :comments
+           (api-request :get #?"/projects/$(project-id)/tasks/$(task-id)/comments")))
 
 (defun comment (task-id body &key (project-id *project-id*))
   (api-request :post #?"/projects/$(project-id)/tasks/$(task-id)/comments"

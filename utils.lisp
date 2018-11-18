@@ -1,7 +1,7 @@
 (defpackage #:deftask-utils
   (:use #:cl)
   (:export #:assocr #:assocrv #:assocrv-fn
-           #:relative-time))
+           #:relative-time #:roughly-same-time-p))
 
 (in-package #:deftask-utils)
 
@@ -54,3 +54,6 @@
            (cl-l10n:with-locale (find-locale locale)
              ;; FIXME: pattern should be locale specific
              (format nil "~:[~;in ~]~A" sentencep (cl-l10n:format-date nil t1 :pattern "MMM yyyy")))))))
+
+(defun roughly-same-time-p (t1 t2)
+  (< (abs (local-time:timestamp-difference t1 t2)) 1))

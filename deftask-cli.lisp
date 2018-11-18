@@ -285,20 +285,25 @@
          :arg-parser #'identity
          :meta-var "DETAIL"))
 
-(defun print-task (task &key detailed project-labels project-members)
+(defun print-task (task &key times labels assignees description project-labels project-members)
   (termcolor:with-color (:style :bright)
     (format t "#~D" (assocrv :task-id task)))
   (format t "~:[ ✅~;~] ~A~%" (string= (assocrv :state task) "open") (assocrv :title task))
-  (when detailed
-    (flet ((show-time (time-string field-name)
-             (let ((time (local-time:parse-timestring time-string)))
-               (format t "~A ~A" field-name (relative-time time)))))
+  (when times
+    (let* ((creator-id (assocrv :creator task))
+           (creator (if project-members
+                        (assocrv :user (find creator-id project-members :key (assocrv-fn '(:user :user-id))))
+                        (deftask:get-user creator-id)))
+           (created-at (local-time:parse-timestring (assocrv :created-at task)))
+           (updated-at (local-time:parse-timestring (assocrv :updated-at task))))
       (termcolor:with-color (:style :dim)
-        (write-string "  ")
-        (show-time (assocrv :created-at task) "Created")
-        (write-string ", ")
-        (show-time (assocrv :updated-at task) "last updated")
-        (terpri)))
+        (format t "  Created by ~A ~A~%"
+                (assocrv :name creator)
+                (relative-time created-at)))
+      (when (not (roughly-same-time-p created-at updated-at))
+        (termcolor:with-color (:style :dim)
+          (format t "  Last updated ~A~%" (relative-time updated-at))))))
+  (when labels
     (when-let (label-ids (assocrv :label-ids task))
       (setf project-labels (or project-labels (deftask:get-labels)))
       (let* ((task-labels (mapcar (lambda (label-id)
@@ -306,7 +311,8 @@
                                   label-ids))
              (task-label-names (mapcar (assocrv-fn :name) task-labels)))
         (termcolor:with-color (:style :dim)
-          (format t "  Labels: ~{~A~^, ~}~%" task-label-names))))
+          (format t "  Labels: ~{~A~^, ~}~%" task-label-names)))))
+  (when assignees
     (when-let (assignee-ids (assocrv :assignee-ids task))
       (setf project-members (or project-members
                                 (deftask:get-project-members deftask:*project-id*)))
@@ -315,7 +321,12 @@
                                 assignee-ids))
              (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
         (termcolor:with-color (:style :dim)
-          (format t "  Assignees: ~{~A~^, ~}~%" assignee-names))))))
+          (format t "  Assignees: ~{~A~^, ~}~%" assignee-names)))))
+  (when description
+    (when-let (task-description (assocrv :description task))
+      (terpri)
+      (write-string task-description)
+      (terpri))))
 
 (defun subcommand-ls (argv)
   (with-options-and-free-args (*ls-opts* argv)
@@ -324,9 +335,10 @@
                            (get-project-config-value :order-by)
                            "updated-at-desc"))
              (page (or (get-opt-value :page) 1))
-             (response (deftask:list-tasks :query (get-opt-value :query)
+             (response (deftask:get-tasks :query (get-opt-value :query)
                                            :order-by order-by
-                                           :page page))
+                                           :page page
+                                           :page-info t))
              (tasks (assocrv :tasks response))
              (labels (when (some (assocrv-fn :label-ids) tasks)
                        (deftask:get-labels)))
@@ -349,10 +361,52 @@
         (dolist (task tasks)
           (if (or (null detail) (string= detail "detailed"))
               (print-task task
-                          :detailed t
+                          :times t
+                          :labels t
+                          :assignees t
                           :project-labels labels
                           :project-members members)
               (print-task task)))))))
+
+(defun print-comment (comment &key project-members)
+  (let* ((creator-id (assocrv :creator comment))
+         (creator (find creator-id project-members
+                        :key (assocrv-fn '(:user :user-id)))))
+    (unless creator
+      (error "Couldn't find member with id: ~A" creator-id))
+    (termcolor:with-color (:style :dim)
+      (format t "Comment #~A by ~A~%"
+              (assocrv :comment-id comment)
+              (assocrv '(:user :name) creator)))
+    (termcolor:with-color (:style :dim)
+      (let ((created-at (local-time:parse-timestring (assocrv :created-at comment)))
+            (updated-at (local-time:parse-timestring (assocrv :updated-at comment))))
+        (format t "Created ~A" (relative-time created-at))
+        (when (not (roughly-same-time-p created-at updated-at))
+          (format t " (updated ~A)" (relative-time updated-at)))
+        (terpri)))
+    (terpri)
+    (write-string (assocrv :body comment))
+    (terpri)))
+
+(defun subcommand-show (argv)
+  (with-token-and-project-id
+    (let* ((task-id (second argv))
+           (task (deftask:get-task task-id))
+           (comments (deftask:get-comments task-id))
+           (project-members (deftask:get-project-members deftask:*project-id*)))
+      (print-task task
+                  :times t
+                  :labels t
+                  :assignees t
+                  :description t
+                  :project-members project-members)
+      (when comments
+        (dolist (comment comments)
+          (termcolor:with-color (:style :dim)
+            (write-string "---"))
+          (terpri)
+          (print-comment comment :project-members project-members))))))
 
 (defun subcommand-close (argv)
   (with-options-and-free-args (*main-opts* argv)
