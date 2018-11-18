@@ -354,16 +354,18 @@
                            "updated-at-desc"))
              (page (or (get-opt-value :page) 1))
              (response (deftask:get-tasks :query (get-opt-value :query)
-                                           :order-by order-by
-                                           :page page
-                                           :page-info t))
+                                          :order-by order-by
+                                          :page page
+                                          :page-info t))
              (tasks (assocrv :tasks response))
-             (labels (when (some (assocrv-fn :label-ids) tasks)
+             (detailedp (string= (or (get-opt-value :detail)
+                                     (get-project-config-value :detail)
+                                     "detailed")
+                                 "detailed"))
+             (labels (when (and detailedp (some (assocrv-fn :label-ids) tasks))
                        (deftask:get-labels)))
-             (members (when (some (assocrv-fn :assignee-ids) tasks)
+             (members (when (and detailedp (some (assocrv-fn :assignee-ids) tasks))
                         (deftask:get-project-members deftask:*project-id*)))
-             (detail (or (get-opt-value :detail)
-                         (get-project-config-value :detail)))
              (page-info (assocrv :page-info response))
              (count (length tasks))
              (total-count (assocrv :count page-info))
@@ -377,7 +379,7 @@
         (format t "Ordered by ~A~%" order-by)
         (format t "---~%")
         (dolist (task tasks)
-          (if (or (null detail) (string= detail "detailed"))
+          (if detailedp
               (print-task task
                           :times t
                           :labels t
