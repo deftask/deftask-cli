@@ -269,9 +269,9 @@
 
 (define-usage-args :defaults "<name> <value>")
 
-(define-opts :defaults (:main)
+(define-opts :defaults ()
   (:name :remove
-         :description "Remove the option"
+         :description "remove the given setting"
          :short #\r
          :long "remove"))
 
@@ -289,8 +289,16 @@
            (write-config)))
         (t (print-config))))))
 
+(define-short-description :project-defaults "Get or set default settings for a project")
+
+(define-opts :project-defaults (:main)
+  (:name :remove
+         :description "remove the given setting"
+         :short #\r
+         :long "remove"))
+
 (defun command-project-defaults (argv)
-  (with-options-and-free-args (:defaults argv)
+  (with-options-and-free-args (:project-defaults argv)
     (let* ((name (second *free-args*))
            (value (third *free-args*))
            (project-id (project-id))
