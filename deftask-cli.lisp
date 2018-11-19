@@ -38,7 +38,10 @@
 (defun home ()
   (user-homedir-pathname))
 
-;;; option parsing
+;;; option parsing and args
+
+(defun argv ()
+  (opts:argv))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun subcommand-to-opts-var-name (name)
@@ -56,15 +59,17 @@
          (opts:define-opts
              ,@descriptions)
          ,(if inherit
-              `(append ,inherit opts::*options*)
+              `(append opts::*options* ,inherit)
               'opts::*options*)))))
 
 (defun subcommand-opts (x)
   (typecase x
-    (keyword (symbol-value (subcommand-to-opts-var-name x)))
+    (keyword (let ((name (subcommand-to-opts-var-name x)))
+               (when (and name (boundp name))
+                 (symbol-value name))))
     (t x)))
 
-(defun get-opts (opts &optional (argv (opts:argv)))
+(defun get-opts (opts &optional (argv (argv)))
   (let ((opts::*options* (subcommand-opts opts)))
     (opts:get-opts argv)))
 
@@ -95,7 +100,83 @@
       (getf-all *options* name)
       (getf *options* name)))
 
+;;; help definitions
+
+(defun program-name ()
+  (first (last (cl-ppcre:split "/" (first (argv))))))
+
+(defparameter *short-descriptions* nil)
+
+(defmacro define-short-description (subcommand short-description)
+  `(progn
+     (when (not (find ,subcommand *short-descriptions* :key #'car))
+       (setf *short-descriptions* (append *short-descriptions*
+                                          (list (cons ,subcommand ,short-description)))))
+     ,subcommand))
+
+(defun short-description (command)
+  (cdr (find command *short-descriptions* :key #'car)))
+
+(defgeneric usage-of (subcommand))
+
+(defmethod usage-of (subcommand)
+  (format nil "~A ~A" (program-name) (string-downcase subcommand)))
+
+(defgeneric usage-args (subcommand))
+
+(defmethod usage-args (subcommand)
+  nil)
+
+(defmacro define-usage-args (subcommand args)
+  `(defmethod usage-args ((x (eql ,subcommand)))
+     ,args))
+
+(defgeneric print-help-prefix (subcommand &optional stream))
+
+(defmethod print-help-prefix (subcommand &optional (stream *standard-output*))
+  (write-string (short-description subcommand) stream))
+
+(defmethod print-help-prefix :after (subcommand &optional (stream *standard-output*))
+  (terpri stream))
+
+(defmacro define-help-prefix (subcommand description)
+  `(defmethod print-help-prefix ((x (eql ,subcommand)) &optional (stream *standard-output*))
+     (write-string ,description stream)))
+
+(defgeneric print-help-suffix (subcommand &optional stream))
+
+(defmethod print-help-suffix (subcommand &optional (stream *standard-output*))
+  (declare (ignore stream))
+  nil)
+
+(defmacro define-help-suffix (subcommand description)
+  `(defmethod print-help-suffix ((x (eql ,subcommand)) &optional (stream *standard-output*))
+     (write-string ,description stream)))
+
+(defun print-help (subcommand &optional (stream *standard-output*))
+  (print-help-prefix subcommand stream)
+  (describe-opts subcommand
+                 :usage-of (usage-of subcommand)
+                 :args (usage-args subcommand))
+  (print-help-suffix subcommand stream))
+
 ;;; main
+
+(defmethod print-help-prefix ((subcommand (eql :main)) &optional (stream *standard-output*))
+  (write-string "The command line client for deftask.com." stream))
+
+(defmethod usage-of ((subcommand (eql :main)))
+  (program-name))
+
+(define-usage-args :main "<subcommand> [<options>] [<args>]")
+
+(defmethod print-help-suffix ((subcommand (eql :main)) &optional (stream *standard-output*))
+  (write-string "Available subcommands:" stream)
+  (terpri stream)
+  (dolist (pair *short-descriptions*)
+    (format stream "  ~A~27T~A~%"
+            (string-downcase (car pair))
+            (cdr pair))))
 
 (define-opts :main ()
   (:name :help
@@ -111,7 +192,7 @@
          :description "provide the project"
          :long "project"
          :arg-parser #'identity
-         :meta-var "PROJECT"))
+         :meta-var "PROJECT_ID"))
 
 (defun parse-subcommand (arg)
   (cond ((null arg) nil)
@@ -128,13 +209,6 @@
   (find-if (lambda (arg)
              (or (string= arg "-h") (string= arg "--help")))
            argv))
-
-(defun show-help (subcommand argv)
-  (declare (ignore subcommand argv))
-  (describe-opts *main-opts* :prefix "deftask-cli is THE program"))
-
-(defun handle-no-subcommand (argv)
-  argv)
 
 (defun handle-subcommand (subcommand argv)
   (let* ((fn (intern (format nil "SUBCOMMAND-~A" (string-upcase subcommand))
@@ -186,6 +260,14 @@
   `(let ((deftask:*token* (token))
          (deftask:*project-id* (project-id)))
      ,@body))
+
+;;; defaults
+
+(define-short-description :defaults "Get or set default settings")
+
+(define-help-prefix :defaults "Get or set default settings for the deftask client")
+
+(define-usage-args :defaults "<name> <value>")
 
 (define-opts :defaults (:main)
   (:name :remove
@@ -240,6 +322,10 @@
 (defun (setf get-project-config-value) (value keyword &optional (project-id (project-id)))
   (setf (get-config-value (project-key keyword project-id)) value))
 
+;;; projects
+
+(define-short-description :projects "List projects")
+
 (defun subcommand-projects (argv)
   (declare (ignore argv))
   (let* ((deftask:*token* (token))
@@ -249,6 +335,10 @@
         (format t "#~D" (assocrv :project-id project)))
       (format t " ~A~%" (assocrv :name project)))))
 
+(define-short-description :new "Create a new task")
+
+(define-usage-args :new "<title>")
+
 (define-opts :new (:main)
   (:name :description
          :description "task description"
@@ -257,13 +347,13 @@
          :arg-parser #'identity
          :meta-var "DESCRIPTION")
   (:name :label
-         :description "a label"
+         :description "assign label to task (can be provided multiple times)"
          :short #\l
          :long "label"
          :arg-parser #'identity
          :meta-var "LABEL")
   (:name :assignee
-         :description "an assignee"
+         :description "name of assignee (can be provided multiple times)"
          :short #\a
          :long "assignee"
          :arg-parser #'identity
@@ -291,6 +381,12 @@
         (termcolor:with-color (:style :bright)
           (format t "#~D" (assocrv :task-id task)))
         (format t " ~A~%" (assocrv :title task))))))
+
+(define-short-description :ls "List tasks")
+
+(define-help-prefix :ls "List tasks for a project
+
+Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
 
 (define-opts :ls (:main)
   (:name :query
@@ -424,6 +520,12 @@
     (write-string (assocrv :body comment))
     (terpri)))
 
+(define-short-description :show "View a task")
+
+(define-usage-args :show "<task-id>")
+
+(define-opts :show (:main))
+
 (defun subcommand-show (argv)
   (with-token-and-project-id
     (let* ((task-id (second argv))
@@ -443,18 +545,41 @@
           (terpri)
           (print-comment comment :project-members project-members))))))
 
+;;; close a task
+
+(define-short-description :close "Close a task")
+
+(define-help-prefix :close "Close the given task")
+
+(define-usage-args :close "<task-id>")
+
+(define-opts :close (:main))
+
 (defun subcommand-close (argv)
   (with-options-and-free-args (:main argv)
     (with-token-and-project-id
       (deftask:close-task (second *free-args*)))))
+
+;;; re-open a task
+
+(define-short-description :open "Reopen a task")
+
+(define-help-prefix :open "Reopen the given task")
+
+(define-usage-args :open "<task-id>")
+
+(define-opts :open (:main))
 
 (defun subcommand-open (argv)
   (with-options-and-free-args (:main argv)
     (with-token-and-project-id
       (deftask:open-task (second *free-args*)))))
 
-(defun subcommand-reopen (argv)
-  (subcommand-open argv))
+;;; edit a task
+
+(define-short-description :edit "Edit a task")
+
+(define-usage-args :edit "<task-id>")
 
 (define-opts :edit (:main)
   (:name :title
@@ -489,10 +614,26 @@
                          :title (get-opt-value :title)
                          :description (get-opt-value :description)))))
 
+;;; comment
+
+(define-short-description :comment "Comment on a task")
+
+(define-usage-args :comment "<task-id> <text>")
+
+(define-opts :comment (:main))
+
 (defun subcommand-comment (argv)
   (with-token-and-project-id
     (let ((comment (deftask:comment (second argv) (third argv))))
       (format t "Created comment #~A~%" (assocrv :comment-id comment)))))
+
+;;; edit comment
+
+(define-short-description :edit-comment "Edit a comment")
+
+(define-usage-args :edit-comment "<task-id> <comment-id> <text>")
+
+(define-opts :edit-comment (:main))
 
 (defun subcommand-edit-comment (argv)
   (with-token-and-project-id
@@ -551,12 +692,12 @@
           (exit-code 0))
       (with-pager (pager)
         (handler-case
-            (let* ((argv (opts:argv))
+            (let* ((argv (argv))
                    (subcommand (parse-subcommand (second argv))))
               (if (show-help-p argv)
-                  (show-help subcommand (rest argv))
+                  (print-help (or subcommand :main))
                   (case subcommand
-                    ((nil) (handle-no-subcommand (rest argv)))
+                    ((nil) (print-help :main))
                     (:invalid (show-help subcommand (rest argv)))
                     (t (handle-subcommand subcommand (rest argv))))))
           (deftask:api-error (e)
