@@ -4,7 +4,7 @@
            #:current-user #:get-user
            #:get-org #:get-org-members #:get-orgs
            #:*project-id* #:get-project #:get-project-members #:get-projects
-           #:deftask #:get-tasks #:get-task #:close-task #:open-task #:edit-task
+           #:deftask #:get-tasks #:get-task #:close-task #:open-task #:edit-task #:read-task
            #:get-comments #:comment #:edit-comment
            #:get-labels
            #:api-error))
@@ -54,7 +54,8 @@
       (declare (ignore response-uri stream closedp))
       (if (and (>= status-code 200) (< status-code 300))
           (let ((content-type (cdr (assoc :content-type headers))))
-            (when (alexandria:starts-with-subseq "application/json" content-type)
+            (when (and (alexandria:starts-with-subseq "application/json" content-type)
+                       (plusp (length body)))
               (json:decode-json-from-source body)))
           (error 'api-error
                  :status-code status-code
@@ -127,6 +128,9 @@
   (api-request :patch #?"/projects/$(project-id)/tasks/$(task-id)"
                `(("title" . ,title)
                  ("description" . ,description))))
+
+(defun read-task (task-id &key (project-id *project-id*))
+  (api-request :post #?"/projects/$(project-id)/tasks/$(task-id)/read"))
 
 (defun get-comments (task-id &key (project-id *project-id*))
   (assocrv :comments

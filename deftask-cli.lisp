@@ -422,10 +422,13 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
          :arg-parser #'identity
          :meta-var "DETAIL"))
 
-(defun print-task (task &key times labels assignees description project-labels project-members)
+(defun print-task (task &key highlight-unread times labels assignees description project-labels project-members)
   (termcolor:with-color (:style :bright)
     (format t "#~D" (assocrv :task-id task)))
-  (format t "~:[ ✅~;~] ~A~%" (string= (assocrv :state task) "open") (assocrv :title task))
+  (format t "~:[ ✅~;~]~:[~; ✉️ ~] ~A~%"
+          (string= (assocrv :state task) "open")
+          (when highlight-unread (not (assocrv :read task)))
+          (assocrv :title task))
   (when times
     (let* ((creator-id (assocrv :creator task))
            (creator (if project-members
@@ -459,8 +462,8 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
              (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
         (termcolor:with-color (:style :dim)
           (format t "  Assignees: ~{~A~^, ~}~%" assignee-names)))))
-  (when description
-    (when-let (task-description (assocrv :description task))
+  (let ((task-description (assocrv :description task)))
+    (when (and description (plusp (length task-description)))
       (terpri)
       (write-string task-description)
       (terpri))))
@@ -500,12 +503,13 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
         (dolist (task tasks)
           (if detailedp
               (print-task task
+                          :highlight-unread t
                           :times t
                           :labels t
                           :assignees t
                           :project-labels labels
                           :project-members members)
-              (print-task task)))))))
+              (print-task task :highlight-unread t)))))))
 
 (defun print-comment (comment &key project-members)
   (let* ((creator-id (assocrv :creator comment))
@@ -551,7 +555,9 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
           (termcolor:with-color (:style :dim)
             (write-string "---"))
           (terpri)
-          (print-comment comment :project-members project-members))))))
+          (print-comment comment :project-members project-members)))
+      (when (not (assocrv :read task))
+        (deftask:read-task task-id)))))
 
 ;;; close a task
 
