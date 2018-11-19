@@ -40,21 +40,36 @@
 
 ;;; option parsing
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun subcommand-to-opts-var-name (name)
+    (etypecase name
+      (keyword (case name
+                 (:main '*main-opts*)
+                 (t (intern (format nil "*SUBCOMMAND-~A-OPTS*" name) #.*package*))))
+      (symbol name))))
+
 (defmacro define-opts (name (&optional inherit) &body descriptions)
-  `(defparameter ,name
-     (let ((opts::*options* nil))
-       (opts:define-opts
-         ,@descriptions)
-       ,(if inherit
-            `(append ,inherit opts::*options*)
-            'opts::*options*))))
+  (let ((name (subcommand-to-opts-var-name name))
+        (inherit (subcommand-to-opts-var-name inherit)))
+    `(defparameter ,name
+       (let ((opts::*options* nil))
+         (opts:define-opts
+             ,@descriptions)
+         ,(if inherit
+              `(append ,inherit opts::*options*)
+              'opts::*options*)))))
+
+(defun subcommand-opts (x)
+  (typecase x
+    (keyword (symbol-value (subcommand-to-opts-var-name x)))
+    (t x)))
 
 (defun get-opts (opts &optional (argv (opts:argv)))
-  (let ((opts::*options* opts))
+  (let ((opts::*options* (subcommand-opts opts)))
     (opts:get-opts argv)))
 
 (defun describe-opts (opts &key prefix suffix usage-of args (stream *standard-output*))
-  (let ((opts::*options* opts))
+  (let ((opts::*options* (subcommand-opts opts)))
     (opts:describe :prefix prefix
                    :suffix suffix
                    :usage-of usage-of
@@ -82,7 +97,7 @@
 
 ;;; main
 
-(define-opts *main-opts* ()
+(define-opts :main ()
   (:name :help
          :description "print this help text"
          :short #\h
@@ -172,14 +187,14 @@
          (deftask:*project-id* (project-id)))
      ,@body))
 
-(define-opts *defaults-opts* (*main-opts*)
+(define-opts :defaults (:main)
   (:name :remove
          :description "Remove the option"
          :short #\r
          :long "remove"))
 
 (defun subcommand-defaults (argv)
-  (with-options-and-free-args (*defaults-opts* argv)
+  (with-options-and-free-args (:defaults argv)
     (let* ((name (second *free-args*))
            (value (third *free-args*)))
       (cond
@@ -193,7 +208,7 @@
         (t (print-config))))))
 
 (defun subcommand-project-defaults (argv)
-  (with-options-and-free-args (*defaults-opts* argv)
+  (with-options-and-free-args (:defaults argv)
     (let* ((name (second *free-args*))
            (value (third *free-args*))
            (project-id (project-id))
@@ -234,7 +249,7 @@
         (format t "#~D" (assocrv :project-id project)))
       (format t " ~A~%" (assocrv :name project)))))
 
-(define-opts *new-task-opts* (*main-opts*)
+(define-opts :new (:main)
   (:name :description
          :description "task description"
          :short #\d
@@ -255,7 +270,7 @@
          :meta-var "ASSIGNEE"))
 
 (defun subcommand-new (argv)
-  (with-options-and-free-args (*new-task-opts* argv)
+  (with-options-and-free-args (:new argv)
     (with-token-and-project-id
       (let* ((label-names (get-opt-value :label t))
              (label-ids (remove nil
@@ -277,7 +292,7 @@
           (format t "#~D" (assocrv :task-id task)))
         (format t " ~A~%" (assocrv :title task))))))
 
-(define-opts *ls-opts* (*main-opts*)
+(define-opts :ls (:main)
   (:name :query
          :description "search query"
          :short #\q
@@ -347,7 +362,7 @@
       (terpri))))
 
 (defun subcommand-ls (argv)
-  (with-options-and-free-args (*ls-opts* argv)
+  (with-options-and-free-args (:ls argv)
     (with-token-and-project-id
       (let* ((order-by (or (get-opt-value :order-by)
                            (get-project-config-value :order-by)
@@ -429,19 +444,19 @@
           (print-comment comment :project-members project-members))))))
 
 (defun subcommand-close (argv)
-  (with-options-and-free-args (*main-opts* argv)
+  (with-options-and-free-args (:main argv)
     (with-token-and-project-id
       (deftask:close-task (second *free-args*)))))
 
 (defun subcommand-open (argv)
-  (with-options-and-free-args (*main-opts* argv)
+  (with-options-and-free-args (:main argv)
     (with-token-and-project-id
       (deftask:open-task (second *free-args*)))))
 
 (defun subcommand-reopen (argv)
   (subcommand-open argv))
 
-(define-opts *edit-task-opts* (*main-opts*)
+(define-opts :edit (:main)
   (:name :title
          :description "task title"
          :short #\t
@@ -468,7 +483,7 @@
          :meta-var "ASSIGNEE"))
 
 (defun subcommand-edit (argv)
-  (with-options-and-free-args (*edit-task-opts* argv)
+  (with-options-and-free-args (:edit argv)
     (with-token-and-project-id
       (deftask:edit-task (second *free-args*)
                          :title (get-opt-value :title)
