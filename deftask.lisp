@@ -6,7 +6,8 @@
            #:*project-id* #:get-project #:get-project-members #:get-projects
            #:deftask #:get-tasks #:get-task #:close-task #:open-task #:edit-task
            #:get-comments #:comment #:edit-comment
-           #:get-labels))
+           #:get-labels
+           #:api-error))
 
 (in-package #:deftask)
 
@@ -20,6 +21,21 @@
 
 (defvar *version* "0.1")
 
+(define-condition api-error (error)
+  ((status-code :initarg :status-code :reader api-error-status-code)
+   (reason :initarg :reason :reader api-error-reason)
+   (method :initarg :method :reader api-error-method)
+   (path :initarg :path :reader api-error-path)))
+
+(defmethod print-object ((x api-error) stream)
+  (if (or *print-readably* *print-escape*)
+      (call-next-method)
+      (format stream "API error: HTTP status ~A ~S returned for ~A ~A"
+              (api-error-status-code x)
+              (api-error-reason x)
+              (api-error-method x)
+              (api-error-path x))))
+
 (defun api-request (method path &optional parameters)
   (setf parameters (remove nil parameters :key #'cdr))
   (let ((url (quri:render-uri
@@ -29,17 +45,22 @@
         (drakma:*text-content-types* (cons '("application" . "json") drakma:*text-content-types*))
         (content (when (member method '(:post :patch))
                    (quri:url-encode-params parameters))))
-    (multiple-value-bind (body status headers)
+    (multiple-value-bind (body status-code headers response-uri stream closedp reason)
         (drakma:http-request url
                              :method method
                              :basic-authorization (list "bearer" *token*)
                              :parameters (when (eql method :get) parameters)
                              :content content)
-      (if (and (>= status 200) (< status 300))
+      (declare (ignore response-uri stream closedp))
+      (if (and (>= status-code 200) (< status-code 300))
           (let ((content-type (cdr (assoc :content-type headers))))
             (when (alexandria:starts-with-subseq "application/json" content-type)
               (json:decode-json-from-source body)))
-          (error "Bad status code: ~A" status)))))
+          (error 'api-error
+                 :status-code status-code
+                 :reason reason
+                 :method method
+                 :path path)))))
 
 (defun current-user ()
   (api-request :get "/user"))

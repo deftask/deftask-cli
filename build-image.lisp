@@ -6,6 +6,7 @@
 
 #+sbcl
 (progn
+  (sb-ext:disable-debugger)
   (sb-ext:save-lisp-and-die "deftask-cli"
                             :executable t
                             :save-runtime-options t

@@ -494,7 +494,6 @@
           ;; parent
           (progn
             (dup2 write-fd +stdout+)
-            (dup2 write-fd +stderr+)
             (posix-close read-fd)
             (posix-close write-fd)
             pid)
@@ -518,9 +517,7 @@
            (let ((,child-pid (apply #'launch-pager ,pager)))
              (unwind-protect (progn ,@body)
                (force-output *standard-output*)
-               (force-output *error-output*)
                (posix-close +stdout+)
-               (posix-close +stderr+)
                (waitpid ,child-pid (null-pointer) 0)))
            (progn ,@body)))))
 
@@ -535,13 +532,21 @@
 (defun main ()
   (with-simple-restart (abort "Abort program")
     (let ((*config* (read-config))
-          (termcolor:*colorize* (interactive-terminal-p)))
+          (termcolor:*colorize* (interactive-terminal-p))
+          (exit-code 0))
       (with-pager (pager)
-        (let* ((argv (opts:argv))
-               (subcommand (parse-subcommand (second argv))))
-          (if (show-help-p argv)
-              (show-help subcommand (rest argv))
-              (case subcommand
-                ((nil) (handle-no-subcommand (rest argv)))
-                (:invalid (show-help subcommand (rest argv)))
-                (t (handle-subcommand subcommand (rest argv))))))))))
+        (handler-case
+            (let* ((argv (opts:argv))
+                   (subcommand (parse-subcommand (second argv))))
+              (if (show-help-p argv)
+                  (show-help subcommand (rest argv))
+                  (case subcommand
+                    ((nil) (handle-no-subcommand (rest argv)))
+                    (:invalid (show-help subcommand (rest argv)))
+                    (t (handle-subcommand subcommand (rest argv))))))
+          (deftask:api-error (e)
+            (princ e *error-output*)
+            (terpri *error-output*)
+            (setf exit-code 1))))
+      (force-output *error-output*)
+      (exit exit-code))))

@@ -225,3 +225,10 @@
 
 (defsysfun ("chdir" :signal-errors t) :int
   (path :string))
+
+;; misc
+
+(defcfun "exit" :void
+  (status :int))
+
+(export 'exit)
