@@ -157,12 +157,12 @@
      :do (format t "~&~A = ~A~%" (string-downcase key) value)))
 
 (defun token ()
-  (or (getf *options* :token)
+  (or (get-opt-value :token)
       (getenv "DEFTASK_TOKEN")
       (get-config-value :token)))
 
 (defun project-id ()
-  (when-let (str (or (getf *options* :project)
+  (when-let (str (or (get-opt-value :project)
                      (getenv "DEFTASK_PROJECT")
                      (get-config-value :project)))
     (parse-integer str)))
@@ -484,9 +484,9 @@
     (deftask:edit-comment (second argv) (third argv) (fourth argv))
     (format t "Edited comment #~A~%" (third argv))))
 
-;; less launcher
+;; pager
 
-(defun launch-pager (name args)
+(defun launch-pager (name &rest args)
   (destructuring-bind (read-fd . write-fd)
       (pipe)
     (let ((pid (fork)))
@@ -508,17 +508,27 @@
 (defun interactive-terminal-p ()
   (isatty +stdout+))
 
-(defmacro with-pager ((name args) &body body)
-  (let ((child-pid (gensym "CHILD-PID-")))
-    `(if (interactive-terminal-p)
-         (let ((,child-pid (launch-pager ,name ,args)))
-           (unwind-protect (progn ,@body)
-             (force-output *standard-output*)
-             (force-output *error-output*)
-             (posix-close +stdout+)
-             (posix-close +stderr+)
-             (waitpid ,child-pid (null-pointer) 0)))
-         (progn ,@body))))
+(defvar *pager* nil)
+(defvar *default-pager* nil)
+
+(defmacro with-pager (name-and-args &body body)
+  (with-gensyms (pager child-pid)
+    `(let ((,pager (or ,name-and-args *pager*)))
+       (if (and ,pager (interactive-terminal-p))
+           (let ((,child-pid (apply #'launch-pager ,pager)))
+             (unwind-protect (progn ,@body)
+               (force-output *standard-output*)
+               (force-output *error-output*)
+               (posix-close +stdout+)
+               (posix-close +stderr+)
+               (waitpid ,child-pid (null-pointer) 0)))
+           (progn ,@body)))))
+
+(defun pager ()
+  (cl-ppcre:split " "
+                  (or (getenv "PAGER")
+                      (get-config-value :pager)
+                      *default-pager*)))
 
 ;;; main
 
@@ -526,7 +536,7 @@
   (with-simple-restart (abort "Abort program")
     (let ((*config* (read-config))
           (termcolor:*colorize* (interactive-terminal-p)))
-      (with-pager ("less" (list "-FRX"))
+      (with-pager (pager)
         (let* ((argv (opts:argv))
                (subcommand (parse-subcommand (second argv))))
           (if (show-help-p argv)

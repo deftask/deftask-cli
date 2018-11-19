@@ -2,6 +2,8 @@
 
 (ql:quickload "deftask-cli")
 
+(setf deftask-cli::*default-pager* "less -FRX")
+
 #+sbcl
 (progn
   (sb-ext:save-lisp-and-die "deftask-cli"
