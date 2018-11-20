@@ -4,6 +4,8 @@
 
 (in-package #:deftask-cli)
 
+(cl-interpol:enable-interpol-syntax)
+
 ;;; secure read
 ;;; https://letoverlambda.com/textmode.cl/guest/chap4.html#sec_6
 
@@ -170,13 +172,34 @@
 
 (define-usage-args :main "<command> [<options>] [<args>]")
 
+(defun token-generation-url (&optional (endpoint deftask:*endpoint*))
+  (let ((endpoint-uri (quri:uri endpoint)))
+    (quri:render-uri
+     (quri:make-uri :host (cl-ppcre:regex-replace "^api[.]" (quri:uri-host endpoint-uri) "")
+                    :path "/settings/tokens"
+                    :defaults endpoint-uri))))
+
 (defmethod print-help-suffix ((command (eql :main)) &optional (stream *standard-output*))
   (write-string "Available commands:" stream)
   (terpri stream)
   (dolist (pair *short-descriptions*)
     (format stream "  ~A~27T~A~%"
             (string-downcase (car pair))
-            (cdr pair))))
+            (cdr pair)))
+  (terpri stream)
+  (write-string #?"For help on any command, use `$((program-name)) <command> -h`"
+                stream)
+  (terpri stream)
+  (terpri stream)
+  (write-string #?"Before you use any command, you need to provide the access token:
+
+1. sign up on deftask.com
+2. create an access token by visiting $((token-generation-url))
+3. set the access token: `$((program-name)) defaults token ACCESS_TOKEN`
+
+You can also provide it via the command line option --token. This will override the default."
+                stream)
+  (terpri stream))
 
 (define-opts :main ()
   (:name :help
