@@ -102,6 +102,27 @@
       (getf-all *options* name)
       (getf *options* name)))
 
+;;; conditions
+
+(define-condition command-error (error)
+  ((command :initarg :command :reader command-error-command)))
+
+(define-condition unknown-option (command-error)
+  ((underlying-error :initarg :underlying-error :reader underlying-error)))
+
+(define-condition syntax-error (command-error)
+  ((message :initarg :message :reader syntax-error-message)))
+
+(defun syntax-error (command fmt &rest args)
+  (error 'syntax-error
+         :command command
+         :message (apply #'format nil fmt args)))
+
+(defmethod print-object ((x syntax-error) stream)
+  (if (or *print-readably* *print-escape*)
+      (call-next-method)
+      (format stream "Syntax error: ~A" (syntax-error-message x))))
+
 ;;; help definitions
 
 (defun program-name ()
@@ -155,12 +176,14 @@
   `(defmethod print-help-suffix ((x (eql ,command)) &optional (stream *standard-output*))
      (write-string ,description stream)))
 
-(defun print-help (command &optional (stream *standard-output*))
-  (print-help-prefix command stream)
+(defun print-help (command &key (stream *standard-output*) (prefix t) (suffix t))
+  (when prefix
+    (print-help-prefix command stream))
   (describe-opts command
                  :usage-of (usage-of command)
                  :args (usage-args command))
-  (print-help-suffix command stream))
+  (when suffix
+    (print-help-suffix command stream)))
 
 ;;; main
 
@@ -203,7 +226,7 @@ You can also provide it via the command line option --token. This will override 
 
 (define-opts :main ()
   (:name :help
-         :description "print this help text"
+         :description "show help text"
          :short #\h
          :long "help")
   (:name :token
@@ -234,9 +257,12 @@ You can also provide it via the command line option --token. This will override 
            argv))
 
 (defun handle-command (command argv)
-  (let* ((fn (intern (format nil "COMMAND-~A" (string-upcase command))
-                     #.*package*)))
-    (funcall fn argv)))
+  (handler-case
+      (let* ((fn (intern (format nil "COMMAND-~A" (string-upcase command))
+                         #.*package*)))
+        (funcall fn argv))
+    (opts:unknown-option (e)
+      (error 'unknown-option :command command :underlying-error e))))
 
 (defvar *default-config-file* (merge-pathnames #p".deftaskrc" (home)))
 
@@ -393,7 +419,10 @@ You can also provide it via the command line option --token. This will override 
 (defun command-new (argv)
   (with-options-and-free-args (:new argv)
     (with-token-and-project-id
-      (let* ((label-names (get-opt-value :label t))
+      (unless (second *free-args*)
+        (syntax-error :new "Missing <title>"))
+      (let* ((title (second *free-args*))
+             (label-names (get-opt-value :label t))
              (label-ids (remove nil
                                 (mapcar (lambda (name)
                                           (assocrv :label-id
@@ -405,7 +434,7 @@ You can also provide it via the command line option --token. This will override 
                                              (let ((members (deftask:get-project-members deftask:*project-id* name)))
                                                (assocrv '(:user :user-id) (first members))))
                                            assignee-names)))
-             (task (deftask:deftask (second *free-args*)
+             (task (deftask:deftask title
                        :description (get-opt-value :description)
                        :label-ids label-ids
                        :assignee-ids assignee-ids)))
@@ -665,6 +694,10 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
 (define-opts :comment (:main))
 
 (defun command-comment (argv)
+  (unless (second argv)
+    (syntax-error :comment "Missing <task-id> and <text>"))
+  (unless (third argv)
+    (syntax-error :comment "Missing <text>"))
   (with-token-and-project-id
     (let ((comment (deftask:comment (second argv) (third argv))))
       (format t "Created comment #~A~%" (assocrv :comment-id comment)))))
@@ -678,6 +711,12 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
 (define-opts :edit-comment (:main))
 
 (defun command-edit-comment (argv)
+  (unless (second argv)
+    (syntax-error :edit-comment "Missing <task-id>, <comment-id> and <text>"))
+  (unless (third argv)
+    (syntax-error :edit-comment "Missing <comment-id> and <text>"))
+  (unless (fourth argv)
+    (syntax-error :edit-comment "Missing <text>"))
   (with-token-and-project-id
     (deftask:edit-comment (second argv) (third argv) (fourth argv))
     (format t "Edited comment #~A~%" (third argv))))
@@ -745,6 +784,14 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
           (deftask:api-error (e)
             (princ e *error-output*)
             (terpri *error-output*)
-            (setf exit-code 1))))
+            (setf exit-code 1))
+          (unknown-option (e)
+            (princ (underlying-error e) *error-output*)
+            (terpri *error-output*)
+            (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))
+          (syntax-error (e)
+            (princ e *error-output*)
+            (terpri *error-output*)
+            (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))))
       (force-output *error-output*)
       (exit exit-code))))
