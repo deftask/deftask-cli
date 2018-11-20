@@ -416,7 +416,7 @@ You can also provide it via the command line option --token. This will override 
 (defun print-task (task &key highlight-unread times labels assignees description project-labels project-members)
   (termcolor:with-color (:style :bright)
     (format t "#~D" (assocrv :task-id task)))
-  (format t "~:[ ✅~;~]~:[~; ✉️ ~] ~A~%"
+  (format t "~:[ ✅~;~]~:[~; 🔵~] ~A~%"
           (string= (assocrv :state task) "open")
           (when highlight-unread (not (assocrv :read task)))
           (assocrv :title task))
