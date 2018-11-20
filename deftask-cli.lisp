@@ -629,6 +629,8 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
 (defun command-close (argv)
   (with-options-and-free-args (:main argv)
     (with-token-and-project-id
+      (unless (second *free-args*)
+        (syntax-error :close "Missing <task-id>"))
       (deftask:close-task (second *free-args*)))))
 
 ;;; re-open a task
@@ -644,6 +646,8 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
 (defun command-open (argv)
   (with-options-and-free-args (:main argv)
     (with-token-and-project-id
+      (unless (second *free-args*)
+        (syntax-error :open "Missing <task-id>"))
       (deftask:open-task (second *free-args*)))))
 
 ;;; edit a task
