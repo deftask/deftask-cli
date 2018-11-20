@@ -473,7 +473,7 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
     (with-token-and-project-id
       (let* ((order-by (or (get-opt-value :order-by)
                            (get-project-config-value :order-by)
-                           "updated-at-desc"))
+                           "recently-updated"))
              (page (or (get-opt-value :page) 1))
              (response (deftask:get-tasks :query (get-opt-value :query)
                                           :order-by order-by
