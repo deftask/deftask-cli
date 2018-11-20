@@ -461,12 +461,12 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
          :long "page"
          :arg-parser #'parse-integer
          :meta-var "PAGE")
-  (:name :detail
-         :description "task detail"
-         :short #\d
-         :long "detail"
-         :arg-parser #'identity
-         :meta-var "DETAIL"))
+  (:name :compact
+         :description "show tasks in a compact style (oneline)"
+         :long "compact")
+  (:name :detailed
+         :description "show tasks in a detailed style"
+         :long "detailed"))
 
 (defun command-ls (argv)
   (with-options-and-free-args (:ls argv)
@@ -480,13 +480,18 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
                                           :page page
                                           :page-info t))
              (tasks (assocrv :tasks response))
-             (detailedp (string= (or (get-opt-value :detail)
-                                     (get-project-config-value :detail)
-                                     "detailed")
-                                 "detailed"))
-             (labels (when (and detailedp (some (assocrv-fn :label-ids) tasks))
+             (detail (let ((default-detail (get-project-config-value :detail)))
+                       (cond
+                         ((get-opt-value :compact) :compact)
+                         ((get-opt-value :detailed) :detailed)
+                         ((equal default-detail "compact") :compact)
+                         ((equal default-detail "detailed") :detailed)
+                         (t :detailed))))
+             (labels (when (and (eq detail :detailed)
+                                (some (assocrv-fn :label-ids) tasks))
                        (deftask:get-labels)))
-             (members (when (and detailedp (some (assocrv-fn :assignee-ids) tasks))
+             (members (when (and (eq detail :detailed)
+                                 (some (assocrv-fn :assignee-ids) tasks))
                         (deftask:get-project-members deftask:*project-id*)))
              (page-info (assocrv :page-info response))
              (count (length tasks))
@@ -501,7 +506,7 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
         (format t "Ordered by ~A~%" order-by)
         (format t "---~%")
         (dolist (task tasks)
-          (if detailedp
+          (if (eq detail :detailed)
               (print-task task
                           :highlight-unread t
                           :times t
