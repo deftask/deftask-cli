@@ -214,7 +214,7 @@
                 stream)
   (terpri stream)
   (terpri stream)
-  (write-string #?"Before you use any command, you need to provide the access token:
+  (write-string #?"Before you use any command, you need the API access token:
 
 1. sign up on deftask.com
 2. create an access token by visiting $((token-generation-url))
