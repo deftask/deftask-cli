@@ -390,38 +390,6 @@
           (format t "#~D" (assocrv :task-id task)))
         (format t " ~A~%" (assocrv :title task))))))
 
-(define-short-description :ls "List tasks")
-
-(define-help-prefix :ls "List tasks for a project
-
-Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
-
-(define-opts :ls (:main)
-  (:name :query
-         :description "search query"
-         :short #\q
-         :long "query"
-         :arg-parser #'identity
-         :meta-var "QUERY")
-  (:name :order-by
-         :description "field to order results by"
-         :short #\o
-         :long "order-by"
-         :arg-parser #'identity
-         :meta-var "ORDER_BY")
-  (:name :page
-         :description "page to display"
-         :short #\p
-         :long "page"
-         :arg-parser #'parse-integer
-         :meta-var "PAGE")
-  (:name :detail
-         :description "task detail"
-         :short #\d
-         :long "detail"
-         :arg-parser #'identity
-         :meta-var "DETAIL"))
-
 (defun print-task (task &key highlight-unread times labels assignees description project-labels project-members)
   (termcolor:with-color (:style :bright)
     (format t "#~D" (assocrv :task-id task)))
@@ -467,6 +435,38 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
       (terpri)
       (write-string task-description)
       (terpri))))
+
+(define-short-description :ls "List tasks")
+
+(define-help-prefix :ls "List tasks for a project
+
+Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
+
+(define-opts :ls (:main)
+  (:name :query
+         :description "search query"
+         :short #\q
+         :long "query"
+         :arg-parser #'identity
+         :meta-var "QUERY")
+  (:name :order-by
+         :description "field to order results by"
+         :short #\o
+         :long "order-by"
+         :arg-parser #'identity
+         :meta-var "ORDER_BY")
+  (:name :page
+         :description "page to display"
+         :short #\p
+         :long "page"
+         :arg-parser #'parse-integer
+         :meta-var "PAGE")
+  (:name :detail
+         :description "task detail"
+         :short #\d
+         :long "detail"
+         :arg-parser #'identity
+         :meta-var "DETAIL"))
 
 (defun command-ls (argv)
   (with-options-and-free-args (:ls argv)
