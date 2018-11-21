@@ -15,7 +15,7 @@
 
 ;;; sdk
 
-(defvar *endpoint* "http://api.deftask-local.com:7680")
+(defvar *endpoint* "https://api.deftask.com")
 
 (defvar *token* nil)
 
