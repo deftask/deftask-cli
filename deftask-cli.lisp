@@ -450,7 +450,7 @@ To remove a config value, use `$((program-name)) config -r <name>`")
           (format t "#~D" (assocrv :task-id task)))
         (format t " ~A~%" (assocrv :title task))))))
 
-(defun print-task (task &key highlight-unread times labels assignees description project-labels project-members)
+(defun print-task (task &key highlight-unread times labels assignees description task-labels task-users)
   (termcolor:with-color (:style :bright)
     (format t "#~D" (assocrv :task-id task)))
   (format t "~:[ ✅~;~]~:[~; 🔵~] ~A~%"
@@ -459,8 +459,8 @@ To remove a config value, use `$((program-name)) config -r <name>`")
           (assocrv :title task))
   (when times
     (let* ((creator-id (assocrv :creator task))
-           (creator (if project-members
-                        (assocrv :user (find creator-id project-members :key (assocrv-fn '(:user :user-id))))
+           (creator (if task-users
+                        (find creator-id task-users :key (assocrv-fn :user-id))
                         (deftask:get-user creator-id)))
            (created-at (local-time:parse-timestring (assocrv :created-at task)))
            (updated-at (local-time:parse-timestring (assocrv :updated-at task))))
@@ -473,21 +473,18 @@ To remove a config value, use `$((program-name)) config -r <name>`")
           (format t "  Last updated ~A~%" (relative-time updated-at))))))
   (when labels
     (when-let (label-ids (assocrv :label-ids task))
-      (setf project-labels (or project-labels (deftask:get-labels)))
       (let* ((task-labels (mapcar (lambda (label-id)
-                                    (find label-id project-labels :key (assocrv-fn :label-id)))
+                                    (find label-id task-labels :key (assocrv-fn :label-id)))
                                   label-ids))
              (task-label-names (mapcar (assocrv-fn :name) task-labels)))
         (termcolor:with-color (:style :dim)
           (format t "  Labels: ~{~A~^, ~}~%" task-label-names)))))
   (when assignees
     (when-let (assignee-ids (assocrv :assignee-ids task))
-      (setf project-members (or project-members
-                                (deftask:get-project-members deftask:*project-id*)))
       (let* ((assignees (mapcar (lambda (assignee-id)
-                                  (find assignee-id project-members :key (assocrv-fn '(:user :user-id))))
+                                  (find assignee-id task-users :key (assocrv-fn :user-id)))
                                 assignee-ids))
-             (assignee-names (mapcar (assocrv-fn '(:user :name)) assignees)))
+             (assignee-names (mapcar (assocrv-fn ':name) assignees)))
         (termcolor:with-color (:style :dim)
           (format t "  Assignees: ~{~A~^, ~}~%" assignee-names)))))
   (let ((task-description (assocrv :description task)))
@@ -540,7 +537,9 @@ Filter and re-order tasks using -q and -o respectively.
              (response (deftask:get-tasks :query (get-opt-value :query)
                                           :order-by order-by
                                           :page page
-                                          :page-info t))
+                                          :page-info t
+                                          :resolve-labels t
+                                          :resolve-users t))
              (tasks (assocrv :tasks response))
              (detail (let ((default-detail (get-project-config-value :ls.detail)))
                        (cond
@@ -549,11 +548,8 @@ Filter and re-order tasks using -q and -o respectively.
                          ((equal default-detail "compact") :compact)
                          ((equal default-detail "detailed") :detailed)
                          (t :detailed))))
-             (labels (when (and (eq detail :detailed)
-                                (some (assocrv-fn :label-ids) tasks))
-                       (deftask:get-labels)))
-             (members (when (eq detail :detailed)
-                        (deftask:get-project-members deftask:*project-id*)))
+             (labels (assocrv :labels response))
+             (members (assocrv :users response))
              (page-info (assocrv :page-info response))
              (count (length tasks))
              (total-count (assocrv :count page-info))
@@ -573,20 +569,19 @@ Filter and re-order tasks using -q and -o respectively.
                           :times t
                           :labels t
                           :assignees t
-                          :project-labels labels
-                          :project-members members)
+                          :task-labels labels
+                          :task-users members)
               (print-task task :highlight-unread t)))))))
 
-(defun print-comment (comment &key project-members)
+(defun print-comment (comment &key task-users)
   (let* ((creator-id (assocrv :creator comment))
-         (creator (find creator-id project-members
-                        :key (assocrv-fn '(:user :user-id)))))
+         (creator (find creator-id task-users :key (assocrv-fn :user-id))))
     (unless creator
       (error "Couldn't find member with id: ~A" creator-id))
     (termcolor:with-color (:style :dim)
       (format t "Comment #~A by ~A~%"
               (assocrv :comment-id comment)
-              (assocrv '(:user :name) creator)))
+              (assocrv :name creator)))
     (termcolor:with-color (:style :dim)
       (let ((created-at (local-time:parse-timestring (assocrv :created-at comment)))
             (updated-at (local-time:parse-timestring (assocrv :updated-at comment))))
@@ -609,20 +604,22 @@ Filter and re-order tasks using -q and -o respectively.
     (unless (second argv)
       (syntax-error :show "Missing <task-id>"))
     (let* ((task-id (second argv))
-           (task (deftask:get-task task-id))
-           (comments (deftask:get-comments task-id))
-           (project-members (deftask:get-project-members deftask:*project-id*)))
+           (task (deftask:get-task task-id :resolve-labels t :resolve-users t :resolve-comments t))
+           (comments (assocrv '(:rel :comments) task))
+           (labels (assocrv '(:rel :labels) task))
+           (users (assocrv '(:rel :users) task)))
       (print-task task
                   :times t
                   :labels t
                   :assignees t
                   :description t
-                  :project-members project-members)
+                  :task-labels labels
+                  :task-users users)
       (when comments
         (dolist (comment comments)
           (write-string "---")
           (terpri)
-          (print-comment comment :project-members project-members)))
+          (print-comment comment :task-users users)))
       (when (not (assocrv :read task))
         (deftask:read-task task-id)))))
 

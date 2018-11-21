@@ -103,18 +103,23 @@
                  ,@(alist-for-sequence "label-id" label-ids)
                  ,@(alist-for-sequence "assignee-id" assignee-ids))))
 
-(defun get-tasks (&key query page order-by page-info (project-id *project-id*))
+(defun get-tasks (&key (project-id *project-id*) query page order-by page-info resolve-labels resolve-users)
   (let ((response (api-request :get #?"/projects/$(project-id)/tasks"
                                `(("query" . ,query)
                                  ("page" . ,(when page (format nil "~A" page)))
                                  ("order-by" . ,(when order-by
-                                                  (string-downcase order-by)))))))
-    (if page-info
+                                                  (string-downcase order-by)))
+                                 ("resolve-users" . ,(when resolve-users "true"))
+                                 ("resolve-labels" . ,(when resolve-labels "true"))))))
+    (if (or page-info resolve-labels resolve-users)
         response
         (assocrv :tasks response))))
 
-(defun get-task (task-id &key (project-id *project-id*))
-  (api-request :get #?"/projects/$(project-id)/tasks/$(task-id)"))
+(defun get-task (task-id &key (project-id *project-id*) resolve-labels resolve-users resolve-comments)
+  (api-request :get #?"/projects/$(project-id)/tasks/$(task-id)"
+               `(("resolve-labels" . ,(when resolve-labels "true"))
+                 ("resolve-users" . ,(when resolve-users "true"))
+                 ("resolve-comments" . ,(when resolve-comments "true")))))
 
 (defun close-task (task-id &key (project-id *project-id*))
  (api-request :patch #?"/projects/$(project-id)/tasks/$(task-id)"
