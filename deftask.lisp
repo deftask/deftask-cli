@@ -50,7 +50,9 @@
                              :method method
                              :basic-authorization (list "bearer" *token*)
                              :parameters (when (eql method :get) parameters)
-                             :content content)
+                             :additional-headers `(("Accept-Encoding" . "gzip"))
+                             :content content
+                             :decode-content t)
       (declare (ignore response-uri stream closedp))
       (if (and (>= status-code 200) (< status-code 300))
           (let ((content-type (cdr (assoc :content-type headers))))
