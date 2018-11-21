@@ -600,28 +600,29 @@ Filter and re-order tasks using -q and -o respectively.
 (define-opts :show (:main))
 
 (defun command-show (argv)
-  (with-token-and-project-id
-    (unless (second argv)
-      (syntax-error :show "Missing <task-id>"))
-    (let* ((task-id (second argv))
-           (task (deftask:get-task task-id :resolve-labels t :resolve-users t :resolve-comments t))
-           (comments (assocrv '(:rel :comments) task))
-           (labels (assocrv '(:rel :labels) task))
-           (users (assocrv '(:rel :users) task)))
-      (print-task task
-                  :times t
-                  :labels t
-                  :assignees t
-                  :description t
-                  :task-labels labels
-                  :task-users users)
-      (when comments
-        (dolist (comment comments)
-          (write-string "---")
-          (terpri)
-          (print-comment comment :task-users users)))
-      (when (not (assocrv :read task))
-        (deftask:read-task task-id)))))
+  (with-options-and-free-args (:main argv)
+    (with-token-and-project-id
+      (unless (second *free-args*)
+        (syntax-error :show "Missing <task-id>"))
+      (let* ((task-id (second *free-args*))
+             (task (deftask:get-task task-id :resolve-labels t :resolve-users t :resolve-comments t))
+             (comments (assocrv '(:rel :comments) task))
+             (labels (assocrv '(:rel :labels) task))
+             (users (assocrv '(:rel :users) task)))
+        (print-task task
+                    :times t
+                    :labels t
+                    :assignees t
+                    :description t
+                    :task-labels labels
+                    :task-users users)
+        (when comments
+          (dolist (comment comments)
+            (write-string "---")
+            (terpri)
+            (print-comment comment :task-users users)))
+        (when (not (assocrv :read task))
+          (deftask:read-task task-id))))))
 
 ;;; close a task
 
