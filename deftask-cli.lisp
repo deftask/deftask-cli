@@ -618,8 +618,7 @@ Filter and re-order tasks using -q and -o respectively.
                   :project-members project-members)
       (when comments
         (dolist (comment comments)
-          (termcolor:with-color (:style :dim)
-            (write-string "---"))
+          (write-string "---")
           (terpri)
           (print-comment comment :project-members project-members)))
       (when (not (assocrv :read task))
