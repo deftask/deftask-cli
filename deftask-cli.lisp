@@ -783,7 +783,9 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
                   (print-help (or command :main))
                   (case command
                     ((nil) (print-help :main))
-                    (:invalid (show-help command (rest argv)))
+                    (:invalid
+                     (format t "Error: Invalid command ~S~%" (second argv))
+                     (print-help :main :prefix nil))
                     (t (handle-command command (rest argv))))))
           (deftask:api-error (e)
             (princ e *error-output*)
