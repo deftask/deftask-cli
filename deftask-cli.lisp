@@ -524,7 +524,7 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
   (with-options-and-free-args (:ls argv)
     (with-token-and-project-id
       (let* ((order-by (or (get-opt-value :order-by)
-                           (get-project-config-value :order-by)
+                           (get-project-config-value :ls.order-by)
                            "recently-updated"))
              (page (or (get-opt-value :page) 1))
              (response (deftask:get-tasks :query (get-opt-value :query)
@@ -532,7 +532,7 @@ Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
                                           :page page
                                           :page-info t))
              (tasks (assocrv :tasks response))
-             (detail (let ((default-detail (get-project-config-value :detail)))
+             (detail (let ((default-detail (get-project-config-value :ls.detail)))
                        (cond
                          ((get-opt-value :compact) :compact)
                          ((get-opt-value :detailed) :detailed)
