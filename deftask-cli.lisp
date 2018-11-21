@@ -606,6 +606,8 @@ Filter and re-order tasks using -q and -o respectively.
 
 (defun command-show (argv)
   (with-token-and-project-id
+    (unless (second argv)
+      (syntax-error :show "Missing <task-id>"))
     (let* ((task-id (second argv))
            (task (deftask:get-task task-id))
            (comments (deftask:get-comments task-id))
