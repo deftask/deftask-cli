@@ -7,7 +7,7 @@
 #+sbcl
 (progn
   (sb-ext:disable-debugger)
-  (sb-ext:save-lisp-and-die "deftask-cli"
+  (sb-ext:save-lisp-and-die "deftask"
                             :executable t
                             :save-runtime-options t
                             :compression t
