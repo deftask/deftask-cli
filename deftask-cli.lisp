@@ -500,7 +500,9 @@ To remove a config value, use `$((program-name)) config -r <name>`")
 
 (define-help-prefix :ls "List tasks for a project
 
-Filter and re-order tasks using -q|--query and -o|--order-by respectively.")
+Filter and re-order tasks using -q and -o respectively.
+
+✅ indicates a closed task, 🔵 an unread one.")
 
 (define-opts :ls (:main)
   (:name :query
