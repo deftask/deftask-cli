@@ -1,6 +1,6 @@
 (defpackage #:deftask-cli
   (:use #:cl #:alexandria #:deftask-utils #:cffi #:deftask-sys)
-  (:export #:main))
+  (:export #:main #:build-image))
 
 (in-package #:deftask-cli)
 
@@ -758,12 +758,11 @@ Filter and re-order tasks using -q and -o respectively.
 (defun interactive-terminal-p ()
   (isatty +stdout+))
 
-(defvar *pager* nil)
-(defvar *default-pager* nil)
+(defvar *pager* "less -FRX")
 
 (defmacro with-pager (name-and-args &body body)
   (with-gensyms (pager child-pid)
-    `(let ((,pager (or ,name-and-args *pager*)))
+    `(let ((,pager ,name-and-args))
        (if (and ,pager (interactive-terminal-p))
            (let ((,child-pid (apply #'launch-pager ,pager)))
              (unwind-protect (progn ,@body)
@@ -776,7 +775,7 @@ Filter and re-order tasks using -q and -o respectively.
   (cl-ppcre:split " "
                   (or (getenv "PAGER")
                       (get-config-value :pager)
-                      *default-pager*)))
+                      *pager*)))
 
 ;;; main
 
@@ -813,3 +812,12 @@ Filter and re-order tasks using -q and -o respectively.
             (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))))
       (force-output *error-output*)
       (exit exit-code))))
+
+;;; image
+
+(defun build-image (&optional (path "deftask"))
+  (sb-ext:disable-debugger)
+  (sb-ext:save-lisp-and-die path
+                            :executable t
+                            :save-runtime-options t
+                            :toplevel #'deftask-cli:main))
