@@ -218,7 +218,7 @@
 
 1. sign up on deftask.com
 2. create an access token by visiting $((token-generation-url))
-3. set the access token: `$((program-name)) defaults token ACCESS_TOKEN`
+3. set the access token: `$((program-name)) config token ACCESS_TOKEN`
 
 You can also provide it via the command line option --token. This will override the default."
                 stream)
@@ -310,22 +310,28 @@ You can also provide it via the command line option --token. This will override 
          (deftask:*project-id* (project-id)))
      ,@body))
 
-;;; defaults
+;;; config
 
-(define-short-description :defaults "Get or set default settings")
+(define-short-description :config "Get or set configuration")
 
-(define-help-prefix :defaults "Get or set default settings for the deftask client")
+(define-help-prefix :config "Get or set configuration for the deftask client")
 
-(define-usage-args :defaults "<name> <value>")
+(define-usage-args :config "[<name>] [<value>]")
 
-(define-opts :defaults ()
+(define-help-suffix :config #?"To see the current configuration, use `$((program-name)) config`.
+
+To set a config value, use `$((program-name)) config <name> <value>`
+
+To remove a config value, use `$((program-name)) config -r <name>`")
+
+(define-opts :config ()
   (:name :remove
          :description "remove the given setting"
          :short #\r
          :long "remove"))
 
-(defun command-defaults (argv)
-  (with-options-and-free-args (:defaults argv)
+(defun command-config (argv)
+  (with-options-and-free-args (:config argv)
     (let* ((name (second *free-args*))
            (value (third *free-args*)))
       (cond
@@ -338,16 +344,18 @@ You can also provide it via the command line option --token. This will override 
            (write-config)))
         (t (print-config))))))
 
-(define-short-description :project-defaults "Get or set default settings for a project")
+(define-short-description :project-config "Get or set configuration for a project")
 
-(define-opts :project-defaults (:main)
+(define-usage-args :project-config "[name] [value]")
+
+(define-opts :project-config (:main)
   (:name :remove
          :description "remove the given setting"
          :short #\r
          :long "remove"))
 
-(defun command-project-defaults (argv)
-  (with-options-and-free-args (:project-defaults argv)
+(defun command-project-config (argv)
+  (with-options-and-free-args (:project-config argv)
     (let* ((name (second *free-args*))
            (value (third *free-args*))
            (project-id (project-id))
