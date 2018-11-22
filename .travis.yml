@@ -1,0 +1,11 @@
+language: common-lisp
+os:
+  - linux
+  - osx
+addons:
+  apt:
+    packages: sbcl
+  homebrew:
+    packages: sbcl
+install: ./scripts/install-deps.sh
+script: ./scripts/build.sh
