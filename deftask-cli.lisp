@@ -778,6 +778,8 @@ Filter and re-order tasks using -q and -o respectively.
 ;;; main
 
 (defun main ()
+  (with-output-to-string (*error-output*)
+    (cffi:load-foreign-library 'cl+ssl::libssl))
   (with-simple-restart (abort "Abort program")
     (let* ((*default-config-file* (merge-pathnames #p".deftaskrc" (home)))
            (*config* (read-config))
@@ -814,6 +816,8 @@ Filter and re-order tasks using -q and -o respectively.
 ;;; image
 
 (defun build-image (&optional (path "deftask"))
+  (with-output-to-string (*error-output*)
+    (cffi:close-foreign-library 'cl+ssl::libssl))
   (sb-ext:disable-debugger)
   (sb-ext:save-lisp-and-die path
                             :executable t
