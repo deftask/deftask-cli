@@ -9,7 +9,7 @@ addons:
     packages: sbcl
 install: ./scripts/install-deps.sh
 script: ./scripts/build.sh
-after_success: ./scripts/create-dist.sh
+before_deploy: ./scripts/create-dist.sh
 deploy:
   provider: releases
   api_key:
