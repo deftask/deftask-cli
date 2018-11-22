@@ -1,8 +1,10 @@
 #!/bin/bash
 
+set -e
+
 if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
     export SB_DIST=sbcl-1.4.13-x86-64-linux
-    export TARBALL=$SB_DIST-linux-binary.tar.bz2
+    export TARBALL=$SB_DIST-binary.tar.bz2
     wget http://prdownloads.sourceforge.net/sbcl/$TARBALL
     tar -xjvf $TARBALL
     cd $SB_DIST
