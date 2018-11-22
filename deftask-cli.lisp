@@ -294,6 +294,11 @@ You can also provide it via the command line option --token. This will override 
      :for (key value) :on config :by #'cddr
      :do (format t "~&~A = ~A~%" (string-downcase key) value)))
 
+(defun endpoint ()
+  (or (getenv "DEFTASK_ENDPOINT")
+      (get-config-value :endpoint)
+      deftask:*endpoint*))
+
 (defun token ()
   (or (get-opt-value :token)
       (getenv "DEFTASK_TOKEN")
@@ -784,7 +789,7 @@ Filter and re-order tasks using -q and -o respectively.
     (let* ((*default-config-file* (merge-pathnames #p".deftaskrc" (home)))
            (*config* (read-config))
            (termcolor:*colorize* (interactive-terminal-p))
-           (deftask:*endpoint* (or (get-config-value :endpoint) deftask:*endpoint*))
+           (deftask:*endpoint* (endpoint))
            (exit-code 0))
       (with-pager (pager)
         (handler-case
