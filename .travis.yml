@@ -2,6 +2,7 @@ language: common-lisp
 os:
   - linux
   - osx
+dist: xenial
 addons:
   apt:
     packages: sbcl
