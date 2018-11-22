@@ -1,13 +1,17 @@
 #!/bin/bash
 
 OS=$TRAVIS_OS_NAME
-cd build/$OS
+VERSION=$(build/$OS/deftask version)
 
-VERSION=$(./deftask version)
-TARBALL=deftask-cli-$OS-v$VERSION.tar.gz
+DIST_NAME=deftask-cli-$OS-v$VERSION
+DIST_DIR=build/$DIST_NAME
+mv build/$OS $DIST_DIR
 
-ln ../../README.md
-tar czvf $TARBALL *
-mkdir -p ../dists
-cp $TARBALL ../dists/
-ls ../dists/
+TARBALL=$DIST_NAME.tar.gz
+
+cp README.md $DIST_DIR/
+cd $DIST_DIR
+tar czvf ../$TARBALL *
+cd -
+tar tzvf build/$TARBALL
+
