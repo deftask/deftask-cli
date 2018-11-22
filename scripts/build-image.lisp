@@ -1,5 +1,6 @@
 (push *default-pathname-defaults* asdf:*central-registry*)
 (ql:quickload "cl-fad")
+(ql:quickload "cffi-grovel") ; https://github.com/quicklisp/quicklisp-client/issues/108
 (ql:quickload "deftask-cli")
 
 (defvar *build-dir*
