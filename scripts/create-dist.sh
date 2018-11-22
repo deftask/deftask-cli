@@ -10,8 +10,8 @@ mv build/$OS $DIST_DIR
 TARBALL=$DIST_NAME.tar.gz
 
 cp README.md $DIST_DIR/
-cd $DIST_DIR
-tar czvf ../$TARBALL *
+cd build
+tar czvf $TARBALL $DIST_NAME/*
 cd -
+ls build
 tar tzvf build/$TARBALL
-
