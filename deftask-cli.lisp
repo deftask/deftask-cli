@@ -738,6 +738,13 @@ Filter and re-order tasks using -q and -o respectively.
     (deftask:edit-comment (second argv) (third argv) (fourth argv))
     (format t "Edited comment #~A~%" (third argv))))
 
+;;; version
+
+(defun command-version (argv)
+  (declare (ignore argv))
+  (write-string #.(asdf:component-version (asdf:find-system "deftask-cli")))
+  (terpri))
+
 ;; pager
 
 (defun launch-pager (name &rest args)
