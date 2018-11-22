@@ -1,11 +1,10 @@
 language: common-lisp
+sudo: enabled
 os:
   - linux
   - osx
 dist: xenial
 addons:
-  apt:
-    packages: sbcl
   homebrew:
     packages: sbcl
 install: ./scripts/install-deps.sh
