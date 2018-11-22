@@ -9,3 +9,4 @@ addons:
     packages: sbcl
 install: ./scripts/install-deps.sh
 script: ./scripts/build.sh
+after_success: ./scripts/create-dist.sh
