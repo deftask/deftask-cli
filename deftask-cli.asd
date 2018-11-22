@@ -4,6 +4,7 @@
   :author "Chaitanya Gupta <mail@chaitanyagupta.com>"
   :defsystem-depends-on ("cffi-grovel")
   :depends-on ("cffi"
+               "cffi-grovel"
                "alexandria"
                "drakma"
                "cl-json"
