@@ -10,3 +10,4 @@ ln ../../README.md
 tar czvf $TARBALL *
 mkdir -p ../dists
 cp $TARBALL ../dists/
+ls ../dists/
