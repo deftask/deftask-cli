@@ -1,3 +1,3 @@
 #!/bin/bash
 
-sbcl --load scripts/build-image.lisp
+sbcl --disable-debugger --load scripts/build-image.lisp
