@@ -18,3 +18,4 @@ sbcl --disable-debugger --load quicklisp.lisp --eval '(quicklisp-quickstart:inst
 
 cd ~/quicklisp/local-projects/
 git clone https://github.com/chaitanyagupta/termcolor.git
+git clone -b fix-non-bmp-chars https://github.com/chaitanyagupta/cl-json.git
