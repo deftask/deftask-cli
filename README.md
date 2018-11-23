@@ -18,14 +18,19 @@ To install from source,
 1. Install [SBCL][sbcl]
 2. Install [quicklisp][]. Do ensure that you add quicklisp to your `~/.sbclrc`
    by running `(ql:add-to-init-file)`.
-3. Download the [source code][deftask-cli] for deftask-cli.
-4. Run `sbcl`
-5. Run the following commands under SBCL
+3. Download [termcolor][] under `~/quicklisp/local-projects`
+4. Optionally, download [this fork][cl-json-fork] of cl-json under
+   `~/quicklisp/local-projects`. The fork [fixes][cl-json-pr] cl-json's handling
+   of [non-BMP][unicode-planes] unicode characters. Without it, characters like
+   certain emojis will not render correctly.
+5. Download the [source code][deftask-cli] for deftask-cli under `~/quicklisp/local-projects`
+6. Run `sbcl`
+7. Run the following commands under SBCL
     ```
     * (ql:quickload "deftask-cli")
     * (deftask-cli:build-image)
     ```
-6. This will install the `deftask` binary under your current directory. You
+8. This will install the `deftask` binary under your current directory. You
    should copy this binary to a directory in your `PATH`.
 
 ## Usage
@@ -130,3 +135,7 @@ For support, contact support@deftask.com.
 [sbcl]: http://sbcl.org/
 [quicklisp]: https://www.quicklisp.org/
 [releases]: https://github.com/deftask/deftask-cli/releases
+[termcolor]: https://github.com/chaitanyagupta/termcolor
+[cl-json-fork]: https://github.com/chaitanyagupta/cl-json
+[unicode-planes]: https://en.wikipedia.org/wiki/Plane_(Unicode)
+[cl-json-pr]: https://github.com/hankhero/cl-json/pull/27
