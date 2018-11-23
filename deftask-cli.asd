@@ -1,6 +1,6 @@
 (asdf:defsystem "deftask-cli"
   :description "deftask Command Line"
-  :version "0.2.1"
+  :version "0.2.2"
   :author "Chaitanya Gupta <mail@chaitanyagupta.com>"
   :defsystem-depends-on ("cffi-grovel")
   :depends-on ("cffi"
