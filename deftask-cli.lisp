@@ -42,6 +42,8 @@
 
 ;;; option parsing and args
 
+(defvar *command*)
+
 (defun argv ()
   (opts:argv))
 
@@ -801,7 +803,8 @@ Filter and re-order tasks using -q and -o respectively.
       (with-pager (pager)
         (handler-case
             (let* ((argv (argv))
-                   (command (parse-command (second argv))))
+                   (command (parse-command (second argv)))
+                   (*command* command))
               (if (show-help-p argv)
                   (print-help (or command :main))
                   (case command
