@@ -367,7 +367,7 @@ To remove a config value, use `$((program-name)) config -r <name>`")
            (keyword (when name
                       (config-name-to-keyword (format nil "projects.~A.~A" project-id name)))))
       (unless project-id
-        (error "No project-id given"))
+        (syntax-error :project-config "No project-id given"))
       (cond
         ((and (get-opt-value :remove) name)
          (remove-config-value keyword)
