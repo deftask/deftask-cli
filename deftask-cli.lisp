@@ -109,6 +109,19 @@
 (define-condition command-error (error)
   ((command :initarg :command :reader command-error-command)))
 
+(define-condition simple-command-error (command-error)
+  ((message :initarg :message :reader simple-command-error-message)))
+
+(defun simple-command-error (command fmt &rest args)
+  (error 'simple-command-error
+         :command command
+         :message (apply #'format nil fmt args)))
+
+(defmethod print-object ((x simple-command-error) stream)
+  (if (or *print-readably* *print-escape*)
+      (call-next-method)
+      (format stream "Error: ~A" (simple-command-error-message x))))
+
 (define-condition unknown-option (command-error)
   ((underlying-error :initarg :underlying-error :reader underlying-error)))
 
@@ -584,7 +597,7 @@ Filter and re-order tasks using -q and -o respectively.
   (let* ((creator-id (assocrv :creator comment))
          (creator (find creator-id task-users :key (assocrv-fn :user-id))))
     (unless creator
-      (error "Couldn't find member with id: ~A" creator-id))
+      (simple-command-error *command* "Couldn't find member with id: ~A" creator-id))
     (termcolor:with-color (:style :dim)
       (format t "Comment #~A by ~A~%"
               (assocrv :comment-id comment)
