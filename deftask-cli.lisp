@@ -328,6 +328,14 @@ You can also provide it via the command line option --token. This will override 
 (defmacro with-token-and-project-id (&body body)
   `(let ((deftask:*token* (token))
          (deftask:*project-id* (project-id)))
+     (when (null deftask:*token*)
+       (syntax-error *command*
+                     "Missing token. Use --token or `~A config token <token>`"
+                     (program-name)))
+     (when (null deftask:*project-id*)
+       (syntax-error *command*
+                     "Missing project-id. Use --project or `~A config project <project-id>`"
+                     (program-name)))
      ,@body))
 
 ;;; config
@@ -382,7 +390,9 @@ To remove a config value, use `$((program-name)) config -r <name>`")
            (keyword (when name
                       (config-name-to-keyword (format nil "projects.~A.~A" project-id name)))))
       (unless project-id
-        (syntax-error :project-config "No project-id given"))
+        (syntax-error *command*
+                     "Missing project-id. Use --project or `~A config project <project-id>`"
+                     (program-name)))
       (cond
         ((and (get-opt-value :remove) name)
          (remove-config-value keyword)
@@ -834,7 +844,7 @@ Filter and re-order tasks using -q and -o respectively.
             (princ (underlying-error e) *error-output*)
             (terpri *error-output*)
             (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))
-          (syntax-error (e)
+          (command-error (e)
             (princ e *error-output*)
             (terpri *error-output*)
             (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))
