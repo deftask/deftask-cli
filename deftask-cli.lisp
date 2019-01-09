@@ -821,7 +821,11 @@ Filter and re-order tasks using -q and -o respectively.
           (syntax-error (e)
             (princ e *error-output*)
             (terpri *error-output*)
-            (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))))
+            (print-help (command-error-command e) :stream *error-output* :prefix nil :suffix nil))
+          (error (e)
+            (princ e *error-output*)
+            (terpri *error-output*)
+            (print-help :main :stream *error-output* :prefix nil :suffix nil))))
       (force-output *error-output*)
       (exit exit-code))))
 
